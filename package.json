@@ -9,7 +9,11 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
@@ -18,11 +22,14 @@
     "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
+    "@vitest/ui": "^4.0.16",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "prettier": "^3.4.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.19.1"
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^4.0.16"
   }
 }

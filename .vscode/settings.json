@@ -1,0 +1,7 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "editor.inlineSuggest.enabled": true,
+  "eslint.validate": ["javascript", "typescriptreact", "javascriptreact", "typescript"]
+}
