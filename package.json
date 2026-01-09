@@ -1,11 +1,13 @@
 {
   "name": "hod",
   "version": "1.0.0",
+  "type": "module",
   "description": "HOD project",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
