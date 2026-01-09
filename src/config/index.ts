@@ -1,0 +1,187 @@
+import { readFile, access } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import { parse } from 'yaml';
+import { z } from 'zod';
+import type { Config, ConfigService, FieldConfig } from './types.js';
+import { ConfigLoadError, ConfigValidationError } from './errors.js';
+
+const MARKDOWN_KEY_REGEX = /^[A-Za-z0-9_-]{1,50}$/;
+const NAME_REGEX = /^[a-z0-9-]{1,50}$/;
+
+const markdownKeySchema = z
+  .string()
+  .regex(
+    MARKDOWN_KEY_REGEX,
+    'Markdown key must contain only letters, numbers, hyphens and underscores',
+  );
+
+const nameSchema = z
+  .string()
+  .regex(NAME_REGEX, 'Name must be kebab-case (lowercase letters, numbers, hyphens only)');
+
+const fieldConfigSchema = z
+  .object({
+    name: nameSchema,
+    required: z.boolean().optional(),
+    default: z.string().optional(),
+  })
+  .refine(
+    (field) => {
+      if (field.required && field.default !== undefined) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Field with required: true cannot have a default value',
+      path: ['required'],
+    },
+  )
+  .strict();
+
+const configSchema = z
+  .object({
+    tasksDir: z.string().min(1, 'tasksDir cannot be empty'),
+    fields: z
+      .record(markdownKeySchema, fieldConfigSchema)
+      .refine(
+        (fields) => Object.keys(fields).length >= 1,
+        'fields must contain at least one field',
+      ),
+  })
+  .strict();
+
+const DEFAULT_CONFIG: Config = {
+  tasksDir: './tasks',
+  fields: {
+    Title: { name: 'title', required: true },
+    Description: { name: 'description' },
+    Status: { name: 'status', default: 'pending' },
+  },
+};
+
+export class ConfigServiceImpl implements ConfigService {
+  async load(path?: string): Promise<Config> {
+    const configPath = path ? resolve(path) : resolve(process.cwd(), 'hod.config.yml');
+
+    try {
+      await access(configPath);
+    } catch {
+      return { ...DEFAULT_CONFIG, tasksDir: resolve(process.cwd(), DEFAULT_CONFIG.tasksDir) };
+    }
+
+    const content = await readFile(configPath, 'utf-8');
+
+    let rawConfig: unknown;
+    try {
+      rawConfig = parse(content);
+    } catch (e) {
+      throw new ConfigLoadError('Invalid YAML in configuration file', e as Error);
+    }
+
+    if (!rawConfig || typeof rawConfig !== 'object') {
+      return { ...DEFAULT_CONFIG, tasksDir: resolve(process.cwd(), DEFAULT_CONFIG.tasksDir) };
+    }
+
+    const config = this.validateAndParse(rawConfig);
+
+    const configDir = dirname(configPath);
+    const resolvedTasksDir = resolve(configDir, config.tasksDir);
+
+    this.validatePathSecurity(resolvedTasksDir);
+
+    return {
+      ...config,
+      tasksDir: resolvedTasksDir,
+    };
+  }
+
+  validate(config: Config): void {
+    const result = configSchema.safeParse(config);
+
+    if (!result.success) {
+      throw new ConfigValidationError(result.error.issues);
+    }
+  }
+
+  private validateAndParse(raw: unknown): Config {
+    let parsed: z.infer<typeof configSchema>;
+
+    try {
+      parsed = configSchema.parse(raw);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        throw new ConfigValidationError(e.issues);
+      }
+      throw new ConfigLoadError('Failed to parse configuration', e as Error);
+    }
+
+    this.validateUniqueNames(parsed.fields);
+
+    return this.ensureDescriptionField(parsed);
+  }
+
+  private validateUniqueNames(fields: Record<string, FieldConfig>): void {
+    const names = new Map<string, string>();
+    const duplicates: Array<{ name: string; key1: string; key2: string }> = [];
+
+    for (const [markdownKey, fieldConfig] of Object.entries(fields)) {
+      const existingKey = names.get(fieldConfig.name);
+      if (existingKey) {
+        duplicates.push({ name: fieldConfig.name, key1: existingKey, key2: markdownKey });
+      }
+      names.set(fieldConfig.name, markdownKey);
+    }
+
+    if (duplicates.length > 0) {
+      throw new ConfigValidationError(
+        duplicates.map(({ name, key1, key2 }) => ({
+          message: `Duplicate name "${name}" used by fields "${key1}" and "${key2}"`,
+          path: ['fields', key2, 'name'],
+        })),
+      );
+    }
+  }
+
+  private ensureDescriptionField(config: z.infer<typeof configSchema>): Config {
+    const descriptionField = config.fields.Description;
+
+    if (!descriptionField) {
+      return {
+        ...config,
+        fields: {
+          ...config.fields,
+          Description: { name: 'description' },
+        },
+      };
+    }
+
+    if (descriptionField.name !== 'description') {
+      throw new ConfigValidationError([
+        {
+          message:
+            'Field "Description" must have name="description", but found "' +
+            descriptionField.name +
+            '"',
+          path: ['fields', 'Description', 'name'],
+        },
+      ]);
+    }
+
+    return config;
+  }
+
+  private validatePathSecurity(resolvedTasksDir: string): void {
+    const normalizedTasksDir = resolve(resolvedTasksDir);
+
+    const criticalPaths = ['/etc', '/sys', '/proc', '/root', '/boot'];
+
+    for (const criticalPath of criticalPaths) {
+      if (normalizedTasksDir.startsWith(criticalPath)) {
+        throw new ConfigLoadError('tasksDir path attempts to access critical system directory');
+      }
+    }
+  }
+}
+
+export const configService = new ConfigServiceImpl();
