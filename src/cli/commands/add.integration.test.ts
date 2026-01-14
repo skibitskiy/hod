@@ -41,6 +41,7 @@ async function createIntegrationServices(vol: Volume): Promise<Services> {
     config: configService,
     storage: storageService,
     index: indexService,
+    parser: ParserService,
   };
 }
 

@@ -3,7 +3,7 @@ import { ParseError } from './types.js';
 
 const DEPENDENCY_ID_REGEX = /^\d+(\.\d+)*$/;
 
-interface ParserService {
+export interface ParserService {
   parse(markdown: string): ParsedTask;
   serialize(task: ParsedTask): string;
 }

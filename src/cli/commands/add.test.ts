@@ -4,6 +4,7 @@ import type { Services } from '../services.js';
 import type { StorageService } from '../../storage/storage.js';
 import type { IndexService } from '../../index/index.js';
 import type { ConfigService } from '../../config/types.js';
+import { ParserService } from '../../parser/parser.js';
 import { addCommand, type AddCommandOptions } from './add.js';
 import {
   collectFields,
@@ -47,6 +48,7 @@ const createMockServices = (overrides?: Partial<Services>): Services => ({
     rebuild: vi.fn().mockResolvedValue(undefined),
     getNextTasks: vi.fn().mockReturnValue([]),
   } as unknown as IndexService,
+  parser: ParserService,
   ...overrides,
 });
 

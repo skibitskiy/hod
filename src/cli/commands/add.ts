@@ -1,5 +1,4 @@
 import type { ParsedTask } from '../../parser/types.js';
-import { ParserService } from '../../parser/parser.js';
 import type { Services } from '../services.js';
 import type { Config } from '../../config/types.js';
 import type { StorageService } from '../../storage/storage.js';
@@ -225,7 +224,7 @@ export async function addCommand(options: AddCommandOptions, services: Services)
   const parsedTask = fieldsToParsedTask(withDefaults, dependencies);
 
   // 9. Serialize to Markdown
-  const markdown = ParserService.serialize(parsedTask);
+  const markdown = services.parser.serialize(parsedTask);
 
   // 10. Create in Storage
   await services.storage.create(id, markdown);
