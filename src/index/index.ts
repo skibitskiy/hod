@@ -143,11 +143,7 @@ function detectCycle(
  * Проверяет наличие циклических зависимостей.
  * @throws {CircularDependencyError} при обнаружении цикла
  */
-function checkCircularDependencies(
-  taskId: string,
-  dependencies: string[],
-  index: IndexData,
-): void {
+function checkCircularDependencies(taskId: string, dependencies: string[], index: IndexData): void {
   // Self-dependency check
   if (dependencies.includes(taskId)) {
     throw new CircularDependencyError(`Задача ${taskId} зависит от самой себя`, [taskId, taskId]);
@@ -202,11 +198,7 @@ function checkAllCircularDependencies(tasks: TaskDependencies[]): void {
 /**
  * Атомарная запись индекса в файл.
  */
-async function atomicWriteIndex(
-  tasksDir: string,
-  data: IndexData,
-  fs: FsModule,
-): Promise<void> {
+async function atomicWriteIndex(tasksDir: string, data: IndexData, fs: FsModule): Promise<void> {
   const hodDir = path.join(tasksDir, HOD_DIR_NAME);
   const indexPath = path.join(hodDir, INDEX_FILE_NAME);
   const tempPath = `${indexPath}.tmp`;

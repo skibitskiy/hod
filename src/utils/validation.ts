@@ -16,7 +16,9 @@ export const MAX_ID_LENGTH = 50;
  */
 export function validateTaskId(id: string): void {
   if (id.length > MAX_ID_LENGTH) {
-    throw new IndexValidationError(`ID задачи превышает максимальную длину ${MAX_ID_LENGTH} символов: ${id}`);
+    throw new IndexValidationError(
+      `ID задачи превышает максимальную длину ${MAX_ID_LENGTH} символов: ${id}`,
+    );
   }
   if (!ID_REGEX.test(id)) {
     throw new IndexValidationError(`Невалидный формат ID задачи: ${id}`);

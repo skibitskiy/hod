@@ -2,7 +2,10 @@
  * Ошибка загрузки индекса.
  */
 export class IndexLoadError extends Error {
-  constructor(message: string, public cause?: Error) {
+  constructor(
+    message: string,
+    public cause?: Error,
+  ) {
     super(message);
     this.name = 'IndexLoadError';
   }
@@ -12,7 +15,10 @@ export class IndexLoadError extends Error {
  * Ошибка записи индекса.
  */
 export class IndexWriteError extends Error {
-  constructor(message: string, public cause?: Error) {
+  constructor(
+    message: string,
+    public cause?: Error,
+  ) {
     super(message);
     this.name = 'IndexWriteError';
   }
@@ -22,7 +28,10 @@ export class IndexWriteError extends Error {
  * Повреждение индекса (невалидный JSON).
  */
 export class IndexCorruptionError extends Error {
-  constructor(message: string, public cause?: Error) {
+  constructor(
+    message: string,
+    public cause?: Error,
+  ) {
     super(message);
     this.name = 'IndexCorruptionError';
   }
@@ -42,7 +51,10 @@ export class IndexValidationError extends Error {
  * Обнаружена циклическая зависимость.
  */
 export class CircularDependencyError extends Error {
-  constructor(message: string, public cycle: string[]) {
+  constructor(
+    message: string,
+    public cycle: string[],
+  ) {
     super(message);
     this.name = 'CircularDependencyError';
   }

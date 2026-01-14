@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Volume } from 'memfs';
 import { createIndexService, IndexServiceImpl } from './index.js';
 import type { IndexData, TaskDependencies } from './types.js';
-import {
-  CircularDependencyError,
-  IndexCorruptionError,
-  IndexValidationError,
-} from './errors.js';
+import { CircularDependencyError, IndexCorruptionError, IndexValidationError } from './errors.js';
 
 describe('IndexService', () => {
   let vol: InstanceType<typeof Volume>;
