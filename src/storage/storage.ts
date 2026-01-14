@@ -6,6 +6,8 @@ import {
   StorageNotFoundError,
   StorageWriteError,
 } from './errors.js';
+import { sortIds } from '../utils/sort.js';
+import { ID_REGEX, MAX_ID_LENGTH } from '../utils/validation.js';
 
 type FsModule = typeof defaultFs;
 
@@ -32,29 +34,11 @@ export interface StorageService {
   exists(id: string): Promise<boolean>;
 }
 
-// Regex для валидации ID: число или числа через точку
-const ID_REGEX = /^\d+(\.\d+)*$/;
-const MAX_ID_LENGTH = 50;
-
 function isValidId(id: string): boolean {
   if (id.length > MAX_ID_LENGTH) {
     return false;
   }
   return ID_REGEX.test(id);
-}
-
-function sortIds(ids: string[]): string[] {
-  return ids.sort((a, b) => {
-    const partsA = a.split('.').map(Number);
-    const partsB = b.split('.').map(Number);
-    const maxLen = Math.max(partsA.length, partsB.length);
-    for (let i = 0; i < maxLen; i++) {
-      const valA = partsA[i] ?? 0;
-      const valB = partsB[i] ?? 0;
-      if (valA !== valB) return valA - valB;
-    }
-    return 0;
-  });
 }
 
 function mapErrorToStorageError(e: unknown, context: string): never {
