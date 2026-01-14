@@ -1,1 +1,1 @@
-console.log("HOD project initialized");
+console.log('HOD project initialized');
