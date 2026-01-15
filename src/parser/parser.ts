@@ -125,7 +125,9 @@ class ParserServiceImpl implements ParserService {
     const standardKeys = new Set(['Title', 'Description', 'Status', 'Dependencies']);
     for (const [key, value] of sections.entries()) {
       if (!standardKeys.has(key)) {
-        task[key] = value;
+        // Custom fields: lowercase для совместимости с CLI names
+        const lowerKey = key.toLowerCase();
+        task[lowerKey] = value;
       }
     }
 

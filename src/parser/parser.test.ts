@@ -99,8 +99,9 @@ high`;
       const result = ParserService.parse(markdown);
 
       expect(result.title).toBe('Task');
-      expect(result.CustomField).toBe('custom value');
-      expect(result.Priority).toBe('high');
+      // Custom fields теперь lowercase для совместимости с CLI names
+      expect(result.customfield).toBe('custom value');
+      expect(result.priority).toBe('high');
     });
 
     it('должен выбросить ParseError при пустом вводе', () => {
@@ -254,16 +255,26 @@ done
         title: 'Task',
         status: 'pending',
         dependencies: [],
-        Priority: 'high',
-        Assignee: 'user',
+        // Custom fields теперь lowercase для консистентности
+        priority: 'high',
+        assignee: 'user',
       };
 
       const result = ParserService.serialize(task);
 
-      const priorityIndex = result.indexOf('# Priority');
-      const assigneeIndex = result.indexOf('# Assignee');
+      // Заголовки custom полей в lowercase при сериализации
+      expect(result).toMatch(/# assignee/);
+      expect(result).toMatch(/# priority/);
 
+      // Алфавитный порядок
+      const assigneeIndex = result.indexOf('# assignee');
+      const priorityIndex = result.indexOf('# priority');
       expect(assigneeIndex).toBeLessThan(priorityIndex);
+
+      // Также проверим что парсинг lowercase заголовков работает
+      const parsed = ParserService.parse(result);
+      expect(parsed.priority).toBe('high');
+      expect(parsed.assignee).toBe('user');
     });
   });
 

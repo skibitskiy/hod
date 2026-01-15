@@ -145,7 +145,7 @@ describe('add command - helper functions (unit tests)', () => {
       };
 
       expect(() => validateFieldNames(args, mockConfig)).toThrow(
-        "Неизвестное поле 'unknownField'. Доступные поля: title, description, status, priority",
+        'Неизвестное поле `unknownField`. Доступные поля: title, description, status, priority',
       );
     });
 

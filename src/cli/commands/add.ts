@@ -67,7 +67,7 @@ function validateFieldNames(args: AddCommandOptions, config: Config): void {
     }
     if (!knownNames.has(argName)) {
       const availableFields = Array.from(knownNames).join(', ');
-      throw new Error(`Неизвестное поле '${argName}'. Доступные поля: ${availableFields}`);
+      throw new Error(`Неизвестное поле \`${argName}\`. Доступные поля: ${availableFields}`);
     }
   }
 }

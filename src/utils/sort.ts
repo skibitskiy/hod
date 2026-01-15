@@ -1,14 +1,15 @@
 /**
  * Сортирует ID задач численно по сегментам.
+ * Не мутирует входной массив.
  *
  * @example
  * sortIds(["2", "1.10", "1.2", "10"]) // ["1.2", "1.10", "2", "10"]
  *
  * @param ids - Массив ID для сортировки
- * @returns Отсортированный массив ID
+ * @returns Новый отсортированный массив ID
  */
 export function sortIds(ids: string[]): string[] {
-  return ids.sort((a, b) => {
+  return [...ids].sort((a, b) => {
     const partsA = a.split('.').map(Number);
     const partsB = b.split('.').map(Number);
     const maxLen = Math.max(partsA.length, partsB.length);
