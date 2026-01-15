@@ -5,17 +5,21 @@ import type { StorageService } from '../../storage/storage.js';
 import type { IndexService } from '../../index/index.js';
 import type { ConfigService } from '../../config/types.js';
 import { ParserService } from '../../parser/parser.js';
+import { StorageNotFoundError } from '../../storage/errors.js';
 import { addCommand, type AddCommandOptions } from './add.js';
 import {
   collectFields,
   validateFieldNames,
   applyDefaults,
   validateRequired,
-  generateId,
+  generateMainTaskId,
+  generateSubtaskId,
+  validateParent,
   parseDependencies,
   fieldsToParsedTask,
 } from './add.js';
 import { CircularDependencyError } from '../../index/errors.js';
+import { ParentValidationError } from '../errors.js';
 
 interface NodeError extends Error {
   cause?: unknown;
@@ -317,13 +321,13 @@ describe('add command - helper functions (unit tests)', () => {
     });
   });
 
-  describe('generateId()', () => {
+  describe('generateMainTaskId()', () => {
     it('должен генерировать "1" для пустого хранилища', async () => {
       const storage = {
         list: vi.fn().mockResolvedValue([]),
       } as unknown as StorageService;
 
-      const id = await generateId(storage);
+      const id = await generateMainTaskId(storage);
       expect(id).toBe('1');
     });
 
@@ -336,7 +340,7 @@ describe('add command - helper functions (unit tests)', () => {
         ]),
       } as unknown as StorageService;
 
-      const id = await generateId(storage);
+      const id = await generateMainTaskId(storage);
       expect(id).toBe('4');
     });
 
@@ -350,7 +354,7 @@ describe('add command - helper functions (unit tests)', () => {
         ]),
       } as unknown as StorageService;
 
-      const id = await generateId(storage);
+      const id = await generateMainTaskId(storage);
       expect(id).toBe('3');
     });
 
@@ -363,7 +367,7 @@ describe('add command - helper functions (unit tests)', () => {
         ]),
       } as unknown as StorageService;
 
-      const id = await generateId(storage);
+      const id = await generateMainTaskId(storage);
       expect(id).toBe('6');
     });
 
@@ -375,12 +379,9 @@ describe('add command - helper functions (unit tests)', () => {
         ]),
       } as unknown as StorageService;
 
-      const id = await generateId(storage);
-      // "abc" becomes NaN, Math.max(NaN, 1) is NaN, NaN + 1 is NaN, String(NaN) is "NaN"
-      // But we filter and map, so unique mainIds would be ["abc", "1"]
-      // Math.max(...["abc", "1"].map(Number)) = Math.max(NaN, 1) = NaN
-      // This is a known edge case - in practice, storage should only return valid IDs
-      expect(id).toBe('NaN');
+      const id = await generateMainTaskId(storage);
+      // "abc" is filtered out as invalid (NaN), only "1" is considered
+      expect(id).toBe('2');
     });
 
     it('должен игнорировать невалидные ID при вычислении max', async () => {
@@ -392,9 +393,138 @@ describe('add command - helper functions (unit tests)', () => {
         ]),
       } as unknown as StorageService;
 
-      const id = await generateId(storage);
-      // "invalid" becomes NaN, Math.max(1, 2, NaN) = NaN
-      expect(id).toBe('NaN');
+      const id = await generateMainTaskId(storage);
+      // "invalid" is filtered out, max of [1, 2] is 2, so next is 3
+      expect(id).toBe('3');
+    });
+  });
+
+  describe('generateSubtaskId()', () => {
+    it('должен генерировать "1.1" для первой подзадачи', async () => {
+      const storage = {
+        list: vi.fn().mockResolvedValue([{ id: '1', content: '' }]),
+        read: vi.fn().mockRejectedValue(new StorageNotFoundError('Not found')),
+      } as unknown as StorageService;
+
+      const id = await generateSubtaskId('1', storage);
+      expect(id).toBe('1.1');
+    });
+
+    it('должен генерировать "1.2" если 1.1 существует', async () => {
+      const storage = {
+        list: vi.fn().mockResolvedValue([
+          { id: '1', content: '' },
+          { id: '1.1', content: '' },
+        ]),
+        read: vi.fn()
+          .mockImplementation((id: string) => {
+            if (id === '1.1') return Promise.resolve({ content: '' });
+            return Promise.reject(new StorageNotFoundError('Not found'));
+          }),
+      } as unknown as StorageService;
+
+      const id = await generateSubtaskId('1', storage);
+      expect(id).toBe('1.2');
+    });
+
+    it('должен находить max номер подзадачи', async () => {
+      const storage = {
+        list: vi.fn().mockResolvedValue([
+          { id: '1', content: '' },
+          { id: '1.1', content: '' },
+          { id: '1.5', content: '' },
+          { id: '1.2', content: '' },
+        ]),
+        read: vi.fn()
+          .mockImplementation((id: string) => {
+            if (['1.1', '1.2', '1.5'].includes(id)) return Promise.resolve({ content: '' });
+            return Promise.reject(new StorageNotFoundError('Not found'));
+          }),
+      } as unknown as StorageService;
+
+      const id = await generateSubtaskId('1', storage);
+      expect(id).toBe('1.6');
+    });
+
+    it('должен фильтровать только прямые потомки', async () => {
+      const storage = {
+        list: vi.fn().mockResolvedValue([
+          { id: '1', content: '' },
+          { id: '1.1', content: '' },
+          { id: '1.1.1', content: '' }, // should be ignored
+          { id: '1.2', content: '' },
+        ]),
+        read: vi.fn()
+          .mockImplementation((id: string) => {
+            if (['1.1', '1.1.1', '1.2'].includes(id)) return Promise.resolve({ content: '' });
+            return Promise.reject(new StorageNotFoundError('Not found'));
+          }),
+      } as unknown as StorageService;
+
+      const id = await generateSubtaskId('1', storage);
+      // Should consider only 1.1 and 1.2, not 1.1.1
+      expect(id).toBe('1.3');
+    });
+
+    it('должен выбрасывать ошибку если ID превышает 50 символов', async () => {
+      // Create a parent ID that's 49 characters (one character short of max)
+      const longParent = '1.' + '123456789'.repeat(5) + '1234'; // 49 chars
+
+      const storage = {
+        list: vi.fn().mockResolvedValue([
+          { id: longParent, content: '' },
+        ]),
+        read: vi.fn().mockRejectedValue(new StorageNotFoundError('Not found')),
+      } as unknown as StorageService;
+
+      // Adding ".1" would make it 51 characters (over the limit)
+      await expect(generateSubtaskId(longParent, storage)).rejects.toThrow(
+        'превышает максимальную длину 50 символов',
+      );
+    });
+  });
+
+  describe('validateParent()', () => {
+    it('должен выбрасывать ошибку для пустого parent', async () => {
+      const storage = {
+        read: vi.fn(),
+      } as unknown as StorageService;
+
+      await expect(validateParent('', storage)).rejects.toThrow(ParentValidationError);
+      await expect(validateParent('   ', storage)).rejects.toThrow('не может быть пустым');
+    });
+
+    it('должен выбрасывать ошибку для невалидного формата', async () => {
+      const storage = {
+        read: vi.fn(),
+      } as unknown as StorageService;
+
+      await expect(validateParent('abc', storage)).rejects.toThrow('Неверный формат ID');
+    });
+
+    it('должен выбрасывать ошибку если parent является подзадачей', async () => {
+      const storage = {
+        read: vi.fn().mockResolvedValue({ content: '' }),
+      } as unknown as StorageService;
+
+      await expect(validateParent('1.1', storage)).rejects.toThrow('является подзадачей');
+    });
+
+    it('должен выбрасывать ошибку если parent не существует', async () => {
+      const storage = {
+        read: vi.fn().mockRejectedValue(new StorageNotFoundError('Task not found')),
+      } as unknown as StorageService;
+
+      await expect(validateParent('99', storage)).rejects.toThrow(ParentValidationError);
+      await expect(validateParent('99', storage)).rejects.toThrow('не существует');
+    });
+
+    it('должен проходить валидацию для существующей main задачи', async () => {
+      const storage = {
+        read: vi.fn().mockResolvedValue({ content: '' }),
+      } as unknown as StorageService;
+
+      await expect(validateParent('1', storage)).resolves.not.toThrow();
     });
   });
 });

@@ -3,9 +3,11 @@ import type { Services } from '../services.js';
 import type { Config } from '../../config/types.js';
 import { StorageAccessError } from '../../storage/errors.js';
 import { sortIds } from '../../utils/sort.js';
+import { buildTree, formatTree, detectOrphans, treeToJson } from '../tree.js';
 
 export interface ListCommandOptions {
   [key: string]: string | boolean | undefined;
+  tree?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ export async function listCommand(options: ListCommandOptions, services: Service
 
   const filters: Record<string, string> = {};
   for (const [key, value] of Object.entries(options)) {
-    if (key === 'json') continue;
+    if (key === 'json' || key === 'tree') continue;
     if (value === undefined) continue;
     if (typeof value !== 'string') continue;
 
@@ -66,7 +68,9 @@ export async function listCommand(options: ListCommandOptions, services: Service
   });
 
   // 5. Output
-  if (options.json) {
+  if (options.tree) {
+    outputTree(filtered, !!options.json);
+  } else if (options.json) {
     outputJson(filtered, fields);
   } else {
     outputTable(filtered, fields);
@@ -149,5 +153,38 @@ function outputTable(
       return clean.padEnd(colWidths[cliName]);
     });
     console.log(`${id.padEnd(4)}${values.join('  ')}`);
+  }
+}
+
+/**
+ * Outputs tasks as a tree structure.
+ */
+function outputTree(filtered: Array<{ id: string; task: ParsedTask }>, asJson: boolean): void {
+  // Build tree with warnings
+  const { tree, warnings } = buildTree(filtered);
+
+  // Output any warnings from tree building
+  for (const warning of warnings) {
+    console.warn(warning);
+  }
+
+  // Detect orphaned subtasks
+  const orphans = detectOrphans(tree);
+  if (orphans.length > 0) {
+    console.warn(`Предупреждение: обнаружены ${orphans.length} подзадач с отсутствующими родителями: ${orphans.join(', ')}`);
+  }
+
+  // Output tree
+  if (tree.length === 0) {
+    console.log('Нет задач');
+    return;
+  }
+
+  if (asJson) {
+    // Hierarchical JSON with minimal schema
+    console.log(JSON.stringify(treeToJson(tree), null, 2));
+  } else {
+    // Text tree with box-drawing characters
+    console.log(formatTree(tree));
   }
 }
