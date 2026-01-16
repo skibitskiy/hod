@@ -1,15 +1,15 @@
 /**
- * Индекс зависимостей задач.
- * Ключ - ID задачи, значение - массив ID зависимостей.
+ * Данные задачи в индексе (статус и зависимости).
  */
-export interface IndexData {
-  [taskId: string]: string[];
+export interface TaskIndexData {
+  status: string;
+  dependencies: string[];
 }
 
 /**
- * Зависимости одной задачи.
+ * Индекс задач.
+ * Ключ - ID задачи, значение - статус и зависимости.
  */
-export interface TaskDependencies {
-  id: string;
-  dependencies: string[];
+export interface IndexData {
+  [taskId: string]: TaskIndexData;
 }

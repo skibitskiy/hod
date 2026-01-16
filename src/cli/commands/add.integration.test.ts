@@ -72,7 +72,7 @@ describe('add command (integration tests with memfs)', () => {
 
       // Check index was updated
       const index = await services.index.load();
-      expect(index).toEqual({ '1': [] });
+      expect(index).toEqual({ '1': { status: 'pending', dependencies: [] } });
     });
 
     it('должен применять дефолтный статус из config', async () => {
@@ -82,8 +82,9 @@ describe('add command (integration tests with memfs)', () => {
 
       await addCommand(options, services);
 
-      const content = await services.storage.read('1');
-      expect(content).toContain('# Status\npending');
+      const index = await services.index.load();
+      // Статус сохраняется в индексе, не в markdown
+      expect(index['1']).toEqual({ status: 'pending', dependencies: [] });
     });
 
     it('должен создавать задачи с кастомными полями из config', async () => {
@@ -139,7 +140,7 @@ describe('add command (integration tests with memfs)', () => {
           dependencies: ['1'],
         }),
       );
-      await services.index.update('1.1', ['1']);
+      await services.index.update('1.1', { status: 'pending', dependencies: ['1'] });
 
       // Next main task should be 2, not 1.1
       const id = await addCommand({ title: 'Second main' }, services);
@@ -157,7 +158,7 @@ describe('add command (integration tests with memfs)', () => {
             dependencies: [],
           }),
         );
-        await services.index.update(taskId, []);
+        await services.index.update(taskId, { status: 'pending', dependencies: [] });
       }
 
       // Next ID should be 6 (max is 5)
@@ -181,7 +182,7 @@ describe('add command (integration tests with memfs)', () => {
       const id = await addCommand(options, services);
 
       const index = await services.index.load();
-      expect(index[id]).toEqual(['1', '2']);
+      expect(index[id]).toEqual({ status: 'pending', dependencies: ['1', '2'] });
 
       const content = await services.storage.read(id);
       expect(content).toContain('# Dependencies\n1, 2');
@@ -200,7 +201,7 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const index = await services.index.load();
-      expect(index['4']).toEqual(['1', '2', '3']);
+      expect(index['4']).toEqual({ status: 'pending', dependencies: ['1', '2', '3'] });
     });
 
     it('должен допускать forward references', async () => {
@@ -213,7 +214,7 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const index = await services.index.load();
-      expect(index['1']).toEqual(['99']);
+      expect(index['1']).toEqual({ status: 'pending', dependencies: ['99'] });
     });
 
     it('должен откатывать создание файла при циклической зависимости', async () => {
@@ -288,7 +289,7 @@ describe('add command (integration tests with memfs)', () => {
       expect(lines[0]).toBe('# Title');
       expect(lines[1]).toBe('Test Task');
       expect(lines).toContain('# Description');
-      expect(lines).toContain('# Status');
+      // Status больше не пишется в markdown (только в index)
       expect(lines).toContain('# Dependencies');
     });
 
@@ -322,8 +323,8 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand({ title: 'Task 2', dependencies: '1' }, services);
 
       const index = await services.index.load();
-      expect(index['1']).toEqual([]);
-      expect(index['2']).toEqual(['1']);
+      expect(index['1']).toEqual({ status: 'pending', dependencies: [] });
+      expect(index['2']).toEqual({ status: 'pending', dependencies: ['1'] });
     });
 
     it('должен удалять задачу из индекса при rollback', async () => {
@@ -367,7 +368,7 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const index = await services.index.load();
-      expect(index['1']).toEqual([]);
+      expect(index['1']).toEqual({ status: 'pending', dependencies: [] });
     });
 
     it('должен обрабатывать задачи с большим ID', async () => {
@@ -380,7 +381,7 @@ describe('add command (integration tests with memfs)', () => {
           dependencies: [],
         }),
       );
-      await services.index.update('100', []);
+      await services.index.update('100', { status: 'pending', dependencies: [] });
 
       // Next task should be 101
       const id = await addCommand({ title: 'Next' }, services);

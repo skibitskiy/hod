@@ -2,7 +2,7 @@ import * as defaultFs from 'node:fs/promises';
 import * as path from 'node:path';
 import { sortIds } from '../utils/sort.js';
 import { validateTaskId } from '../utils/validation.js';
-import type { IndexData, TaskDependencies } from './types.js';
+import type { IndexData, TaskIndexData } from './types.js';
 import {
   CircularDependencyError,
   IndexCorruptionError,
@@ -29,7 +29,7 @@ const HOD_DIR_NAME = '.hod';
 const INDEX_FILE_NAME = 'index.json';
 
 /**
- * Интерфейс сервиса управления индексом зависимостей.
+ * Интерфейс сервиса управления индексом задач.
  */
 export interface IndexService {
   /**
@@ -41,14 +41,14 @@ export interface IndexService {
   load(): Promise<IndexData>;
 
   /**
-   * Обновляет зависимости задачи.
+   * Обновляет статус и зависимости задачи.
    * @param taskId - ID задачи
-   * @param dependencies - Массив ID зависимостей
+   * @param data - Данные задачи (статус и зависимости)
    * @throws {IndexValidationError} при невалидном ID
    * @throws {CircularDependencyError} при обнаружении цикла
    * @throws {IndexWriteError} при ошибке записи
    */
-  update(taskId: string, dependencies: string[]): Promise<void>;
+  update(taskId: string, data: TaskIndexData): Promise<void>;
 
   /**
    * Удаляет задачу из индекса.
@@ -57,21 +57,11 @@ export interface IndexService {
   remove(taskId: string): Promise<void>;
 
   /**
-   * Пересобирает индекс из списка задач.
-   * @param tasks - Массив задач с зависимостями
-   * @throws {IndexValidationError} при невалидных данных
-   * @throws {CircularDependencyError} при обнаружении цикла
-   * @throws {IndexWriteError} при ошибке записи
-   */
-  rebuild(tasks: TaskDependencies[]): Promise<void>;
-
-  /**
    * Возвращает ID задач готовых к выполнению.
-   * Примечание: кэш должен быть инициализирован через load/update/remove/rebuild.
-   * @param allStatuses - Объект со статусами всех задач (taskId -> status)
+   * Загружает индекс из файла для получения актуальных статусов.
    * @returns Отсортированный массив ID задач
    */
-  getNextTasks(allStatuses: Record<string, string>): string[];
+  getNextTasks(): Promise<string[]>;
 }
 
 /**
@@ -124,7 +114,8 @@ function detectCycle(
       }
 
       // Рекурсивно проверяем зависимость
-      const deps = index[dep] || [];
+      const depData = index[dep];
+      const deps = depData?.dependencies || [];
       const cycle = detectCycle(dep, deps, index, visiting, visited, path);
       if (cycle) {
         return cycle;
@@ -154,37 +145,22 @@ function checkCircularDependencies(taskId: string, dependencies: string[], index
   const path: string[] = [];
 
   // Добавляем новую задачу во временный индекс для проверки
-  const tempIndex: IndexData = { ...index, [taskId]: dependencies };
+  const existingData = index[taskId];
+  const tempIndex: IndexData = {
+    ...index,
+    [taskId]: { status: existingData?.status || 'pending', dependencies },
+  };
 
   for (const id of Object.keys(tempIndex)) {
     if (!visited.has(id)) {
-      const cycle = detectCycle(id, tempIndex[id] || [], tempIndex, visiting, visited, path);
-      if (cycle) {
-        throw new CircularDependencyError(
-          `Обнаружена циклическая зависимость: ${cycle.join(' -> ')}`,
-          cycle,
-        );
-      }
-    }
-  }
-}
-
-/**
- * Проверяет все задачи на циклические зависимости.
- * Используется в rebuild().
- */
-function checkAllCircularDependencies(tasks: TaskDependencies[]): void {
-  const index: IndexData = {};
-  for (const task of tasks) {
-    index[task.id] = task.dependencies;
-  }
-
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-
-  for (const task of tasks) {
-    if (!visited.has(task.id)) {
-      const cycle = detectCycle(task.id, task.dependencies, index, visiting, visited, []);
+      const cycle = detectCycle(
+        id,
+        tempIndex[id]?.dependencies || [],
+        tempIndex,
+        visiting,
+        visited,
+        path,
+      );
       if (cycle) {
         throw new CircularDependencyError(
           `Обнаружена циклическая зависимость: ${cycle.join(' -> ')}`,
@@ -238,7 +214,6 @@ async function atomicWriteIndex(tasksDir: string, data: IndexData, fs: FsModule)
  */
 class IndexServiceImpl implements IndexService {
   private readonly indexPath: string;
-  private cachedIndex: IndexData | null = null;
 
   constructor(
     private readonly tasksDir: string,
@@ -256,9 +231,7 @@ class IndexServiceImpl implements IndexService {
         // Валидация типа
         if (Array.isArray(data)) {
           // Пустой массив нормализуем в пустой объект
-          const emptyIndex = {};
-          this.cachedIndex = emptyIndex;
-          return emptyIndex;
+          return {};
         }
 
         if (typeof data !== 'object' || data === null) {
@@ -267,18 +240,27 @@ class IndexServiceImpl implements IndexService {
           );
         }
 
-        // Проверяем что все значения - массивы
+        // Проверяем что все значения - объекты с status и dependencies
         const indexData = data as IndexData;
         for (const key in indexData) {
-          if (!Array.isArray(indexData[key])) {
+          const value = indexData[key];
+          if (typeof value !== 'object' || value === null) {
             throw new IndexCorruptionError(
-              `Невалидный формат индекса: значение для ключа "${key}" не является массивом`,
+              `Невалидный формат индекса: значение для ключа "${key}" не является объектом`,
+            );
+          }
+          if (!('status' in value) || !('dependencies' in value)) {
+            throw new IndexCorruptionError(
+              `Невалидный формат индекса: значение для ключа "${key}" должно содержать status и dependencies`,
+            );
+          }
+          if (!Array.isArray(value.dependencies)) {
+            throw new IndexCorruptionError(
+              `Невалидный формат индекса: dependencies для ключа "${key}" не является массивом`,
             );
           }
         }
 
-        // Обновляем кэш
-        this.cachedIndex = indexData;
         return indexData;
       } catch (e) {
         if (e instanceof IndexCorruptionError) {
@@ -289,9 +271,7 @@ class IndexServiceImpl implements IndexService {
     } catch (e) {
       if (isNodeError(e) && e.code === 'ENOENT') {
         // Файл не существует - возвращаем пустой индекс
-        const emptyIndex = {};
-        this.cachedIndex = emptyIndex;
-        return emptyIndex;
+        return {};
       }
       if (isNodeError(e) && e.code === 'EACCES') {
         throw new IndexLoadError(`Нет прав на чтение индекса: ${this.indexPath}`, e);
@@ -303,12 +283,16 @@ class IndexServiceImpl implements IndexService {
     }
   }
 
-  async update(taskId: string, dependencies: string[]): Promise<void> {
+  async update(taskId: string, data: TaskIndexData): Promise<void> {
     // Валидация ID
     validateTaskId(taskId);
 
+    // Валидация статуса (может быть любой строкой, но не пустой?)
+    // Спека говорит "any string", так что принимаем любую
+    const status = data.status || 'pending';
+
     // Нормализация зависимостей
-    const normalizedDeps = normalizeDependencies(dependencies);
+    const normalizedDeps = normalizeDependencies(data.dependencies);
 
     // Валидация ID зависимостей
     for (const dep of normalizedDeps) {
@@ -322,14 +306,11 @@ class IndexServiceImpl implements IndexService {
     checkCircularDependencies(taskId, normalizedDeps, index);
 
     // Обновляем индекс
-    index[taskId] = normalizedDeps;
+    index[taskId] = { status, dependencies: normalizedDeps };
 
     // Создаём директорию и пишем атомарно
     await ensureHodDirectory(this.tasksDir, this.fs);
     await atomicWriteIndex(this.tasksDir, index, this.fs);
-
-    // Обновляем кэш
-    this.cachedIndex = index;
   }
 
   async remove(taskId: string): Promise<void> {
@@ -344,117 +325,39 @@ class IndexServiceImpl implements IndexService {
 
     // Пишем атомарно (директория должна существовать)
     await atomicWriteIndex(this.tasksDir, index, this.fs);
-
-    // Обновляем кэш
-    this.cachedIndex = index;
   }
 
-  async rebuild(tasks: TaskDependencies[]): Promise<void> {
-    // Пустой массив → пустой индекс
-    if (tasks.length === 0) {
-      await ensureHodDirectory(this.tasksDir, this.fs);
-      await atomicWriteIndex(this.tasksDir, {}, this.fs);
-      this.cachedIndex = {};
-      return;
-    }
+  async getNextTasks(): Promise<string[]> {
+    // Загружаем индекс для получения актуальных статусов
+    const index = await this.load();
 
-    // Проверяем дубликаты ID
-    const seenIds = new Set<string>();
-    for (const task of tasks) {
-      if (seenIds.has(task.id)) {
-        throw new IndexValidationError(`Дубликат ID задачи: ${task.id}`);
-      }
-      seenIds.add(task.id);
-    }
-
-    // Валидация и нормализация
-    const normalizedTasks: TaskDependencies[] = [];
-    for (const task of tasks) {
-      validateTaskId(task.id);
-      const normalizedDeps = normalizeDependencies(task.dependencies);
-      for (const dep of normalizedDeps) {
-        validateTaskId(dep);
-      }
-      normalizedTasks.push({ id: task.id, dependencies: normalizedDeps });
-    }
-
-    // Проверяем циклические зависимости
-    checkAllCircularDependencies(normalizedTasks);
-
-    // Собираем индекс
-    const index: IndexData = {};
-    for (const task of normalizedTasks) {
-      index[task.id] = task.dependencies;
-    }
-
-    // Создаём директорию и пишем атомарно
-    await ensureHodDirectory(this.tasksDir, this.fs);
-    await atomicWriteIndex(this.tasksDir, index, this.fs);
-
-    // Обновляем кэш
-    this.cachedIndex = index;
-  }
-
-  getNextTasks(allStatuses: Record<string, string>): string[] {
-    // Если нет статусов - возвращаем пустой массив
-    if (Object.keys(allStatuses).length === 0) {
+    if (Object.keys(index).length === 0) {
       return [];
     }
 
     const readyTasks: string[] = [];
 
-    // Проходим по всем задачам в статусах
-    for (const taskId in allStatuses) {
+    // Проходим по всем задачам в индексе
+    for (const [taskId, taskData] of Object.entries(index)) {
       // Пропускаем выполненные задачи
-      if (allStatuses[taskId] === 'completed') {
+      if (taskData.status === 'completed') {
         continue;
       }
 
-      // Получаем зависимости из индекса (если нет - считаем что нет зависимостей)
-      const dependencies = this.getCachedDependencies(taskId);
-
       // Проверяем что все зависимости выполнены
-      const allDepsCompleted = dependencies.every((depId) => {
-        // Пропускаем если зависимости нет в статусах (orphaned reference)
-        if (!(depId in allStatuses)) {
-          return false;
-        }
-        return allStatuses[depId] === 'completed';
+      const allDepsCompleted = taskData.dependencies.every((depId) => {
+        const depData = index[depId];
+        // Если зависимости нет в индексе - считаем что не выполнена
+        return depData?.status === 'completed';
       });
 
-      if (allDepsCompleted && dependencies.length > 0) {
-        readyTasks.push(taskId);
-      } else if (dependencies.length === 0 && allStatuses[taskId] !== 'completed') {
-        // Задачи без зависимостей тоже готовы
+      if (allDepsCompleted) {
         readyTasks.push(taskId);
       }
     }
 
     // Сортируем по ID
     return sortIds(readyTasks);
-  }
-
-  /**
-   * Вспомогательный метод для получения зависимостей из кэша.
-   * В кэше может быть устаревший индекс, но для getNextTasks это допустимо.
-   */
-  private getCachedDependencies(taskId: string): string[] {
-    // Синхронно возвращаем зависимости из кэша или пустой массив
-    return this.cachedIndex?.[taskId] || [];
-  }
-
-  /**
-   * Сбрасывает кэш индекса.
-   *
-   * @internal Этот метод предназначен только для тестирования.
-   * Не используется в production коде.
-   *
-   * @remarks
-   * Метод не является частью публичного API `IndexService`,
-   * но доступен на экземпляре класса для тестовых сценариев.
-   */
-  resetCache(): void {
-    this.cachedIndex = null;
   }
 }
 
@@ -473,7 +376,7 @@ export { IndexServiceImpl };
 /**
  * Re-export типов для удобства.
  */
-export type { IndexData, TaskDependencies };
+export type { IndexData, TaskIndexData };
 
 /**
  * Re-export ошибок для удобства.

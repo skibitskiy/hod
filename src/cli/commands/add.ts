@@ -348,7 +348,7 @@ export async function addCommand(options: AddCommandOptions, services: Services)
 
   // 13. Update Index (with rollback)
   try {
-    await services.index.update(id, dependencies);
+    await services.index.update(id, { status: parsedTask.status, dependencies });
   } catch (error) {
     // Rollback: delete the created task file
     try {

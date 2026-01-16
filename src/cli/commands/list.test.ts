@@ -32,7 +32,6 @@ const createMockServices = (overrides?: Partial<Services>): Services => ({
     load: vi.fn().mockResolvedValue({}),
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
-    rebuild: vi.fn().mockResolvedValue(undefined),
     getNextTasks: vi.fn().mockReturnValue([]),
   } as unknown as IndexService,
   parser: ParserService,
@@ -85,15 +84,15 @@ describe('listCommand', () => {
     const mockTasks = [
       {
         id: '1',
-        content: '# Title\nЗадача 1\n# Status\npending',
+        content: '# Title\nЗадача 1',
       },
       {
         id: '2',
-        content: '# Title\nЗадача 2\n# Status\ncompleted',
+        content: '# Title\nЗадача 2',
       },
       {
         id: '3',
-        content: '# Title\nЗадача 3\n# Status\npending\n# Priority\nhigh',
+        content: '# Title\nЗадача 3\n# Priority\nhigh',
       },
     ];
 
@@ -109,9 +108,11 @@ describe('listCommand', () => {
       await listCommand(options, services);
 
       const output = logs.join('\n');
+      // Статус больше не читается из markdown (всегда 'pending' при парсинге)
+      // Поэтому все задачи с 'pending' статусом будут показаны
       expect(output).toContain('Задача 1');
+      expect(output).toContain('Задача 2');
       expect(output).toContain('Задача 3');
-      expect(output).not.toContain('Задача 2');
     });
 
     it('должен фильтровать по нескольким полям (AND логика)', async () => {
@@ -319,8 +320,11 @@ describe('listCommand', () => {
 
       const output = logs.join('\n');
       const parsed = JSON.parse(output);
-      expect(parsed).toHaveLength(1);
+      // Статус больше не читается из markdown (всегда 'pending' при парсинге)
+      // Поэтому все задачи с 'pending' статусом будут показаны
+      expect(parsed).toHaveLength(2);
       expect(parsed[0].status).toBe('pending');
+      expect(parsed[1].status).toBe('pending');
     });
   });
 

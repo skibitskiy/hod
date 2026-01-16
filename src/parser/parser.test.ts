@@ -59,31 +59,27 @@ Task`;
 
     it('должен работать с пустым description', () => {
       const markdown = `# Title
-Task
-
-# Status
-done`;
+Task`;
 
       const result = ParserService.parse(markdown);
 
       expect(result.title).toBe('Task');
       expect(result.description).toBeUndefined();
-      expect(result.status).toBe('done');
+      // Status теперь всегда 'pending' (читается из индекса, не из markdown)
+      expect(result.status).toBe('pending');
     });
 
     it('должен работать с многострочными значениями', () => {
       const markdown = `# Title
 строка1
 
-строка2
-
-# Status
-done`;
+строка2`;
 
       const result = ParserService.parse(markdown);
 
       expect(result.title).toBe('строка1\n\nстрока2');
-      expect(result.status).toBe('done');
+      // Status теперь всегда 'pending' (читается из индекса, не из markdown)
+      expect(result.status).toBe('pending');
     });
 
     it('должен игнорировать неизвестные поля', () => {
@@ -183,14 +179,12 @@ Second`;
 
       const result = ParserService.serialize(task);
 
+      // Status больше не сериализуется в markdown (только в index)
       expect(result).toBe(`# Title
 Task
 
 # Description
 Desc
-
-# Status
-done
 
 # Dependencies
 1, 2

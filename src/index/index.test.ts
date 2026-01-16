@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Volume } from 'memfs';
-import { createIndexService, IndexServiceImpl } from './index.js';
-import type { IndexData, TaskDependencies } from './types.js';
+import { createIndexService } from './index.js';
+import type { IndexData } from './types.js';
 import { CircularDependencyError, IndexCorruptionError, IndexValidationError } from './errors.js';
 
 describe('IndexService', () => {
@@ -33,9 +33,9 @@ describe('IndexService', () => {
   describe('load()', () => {
     it('должен загрузить index.json', async () => {
       const testData: IndexData = {
-        '1': [],
-        '2': ['1'],
-        '3': ['1', '2'],
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: ['1'] },
+        '3': { status: 'pending', dependencies: ['1', '2'] },
       };
       writeIndexFile(testData);
 
@@ -70,11 +70,23 @@ describe('IndexService', () => {
       expect(result).toEqual({});
     });
 
-    it('должен выбросить IndexCorruptionError если значение не массив', async () => {
-      writeIndexFile('{"1": "not array"}');
+    it('должен выбросить IndexCorruptionError если значение не объект', async () => {
+      writeIndexFile('{"1": "not object"}');
 
       await expect(service.load()).rejects.toThrow(IndexCorruptionError);
-      await expect(service.load()).rejects.toThrow('не является массивом');
+    });
+
+    it('должен выбросить IndexCorruptionError если нет status', async () => {
+      writeIndexFile('{"1": {"dependencies": []}}');
+
+      await expect(service.load()).rejects.toThrow(IndexCorruptionError);
+      await expect(service.load()).rejects.toThrow('должно содержать status и dependencies');
+    });
+
+    it('должен выбросить IndexCorruptionError если нет dependencies', async () => {
+      writeIndexFile('{"1": {"status": "pending"}}');
+
+      await expect(service.load()).rejects.toThrow(IndexCorruptionError);
     });
 
     it('должен выбросить IndexCorruptionError если null', async () => {
@@ -82,117 +94,121 @@ describe('IndexService', () => {
 
       await expect(service.load()).rejects.toThrow(IndexCorruptionError);
     });
-
-    it('должен обновить кэш после успешной загрузки', async () => {
-      const testData: IndexData = { '1': [] };
-      writeIndexFile(testData);
-
-      await service.load();
-
-      const impl = service as IndexServiceImpl;
-      expect(impl['cachedIndex']).toEqual(testData);
-    });
   });
 
   describe('update()', () => {
-    it('должен обновить зависимости задачи', async () => {
-      writeIndexFile({ '1': [] });
+    it('должен обновить статус и зависимости задачи', async () => {
+      writeIndexFile({ '1': { status: 'pending', dependencies: [] } });
 
-      await service.update('1', ['2']);
+      await service.update('1', { status: 'completed', dependencies: ['2'] });
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '1': ['2'] });
+      expect(content).toEqual({ '1': { status: 'completed', dependencies: ['2'] } });
     });
 
     it('должен создать запись если taskId не существует', async () => {
-      await service.update('5', []);
+      await service.update('5', { status: 'pending', dependencies: [] });
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '5': [] });
+      expect(content).toEqual({ '5': { status: 'pending', dependencies: [] } });
     });
 
-    it('должен установить пустой массив если нет зависимостей', async () => {
-      await service.update('1', []);
+    it('должен использовать pending как дефолтный статус если пустой', async () => {
+      await service.update('1', { status: '', dependencies: [] });
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '1': [] });
+      expect(content).toEqual({ '1': { status: 'pending', dependencies: [] } });
     });
 
     it('должен auto-dedup зависимости', async () => {
-      await service.update('1', ['2', '2', '3', '2']);
+      await service.update('1', { status: 'pending', dependencies: ['2', '2', '3', '2'] });
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '1': ['2', '3'] });
+      expect(content).toEqual({ '1': { status: 'pending', dependencies: ['2', '3'] } });
     });
 
     it('должен auto-trim whitespace в зависимостях', async () => {
-      await service.update('1', [' 2 ', '3 ', ' 4']);
+      await service.update('1', { status: 'pending', dependencies: [' 2 ', '3 ', ' 4'] });
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '1': ['2', '3', '4'] });
+      expect(content).toEqual({ '1': { status: 'pending', dependencies: ['2', '3', '4'] } });
     });
 
     it('должен выбросить IndexValidationError при невалидном ID задачи', async () => {
-      await expect(service.update('invalid', [])).rejects.toThrow(IndexValidationError);
-      await expect(service.update('invalid', [])).rejects.toThrow('Невалидный формат ID');
+      await expect(
+        service.update('invalid', { status: 'pending', dependencies: [] }),
+      ).rejects.toThrow(IndexValidationError);
+      await expect(
+        service.update('invalid', { status: 'pending', dependencies: [] }),
+      ).rejects.toThrow('Невалидный формат ID');
     });
 
     it('должен выбросить IndexValidationError при ID > 50 chars', async () => {
       const longId = '1'.repeat(51);
-      await expect(service.update(longId, [])).rejects.toThrow(IndexValidationError);
-      await expect(service.update(longId, [])).rejects.toThrow('превышает максимальную длину');
+      await expect(service.update(longId, { status: 'pending', dependencies: [] })).rejects.toThrow(
+        IndexValidationError,
+      );
+      await expect(service.update(longId, { status: 'pending', dependencies: [] })).rejects.toThrow(
+        'превышает максимальную длину',
+      );
     });
 
     it('должен выбросить IndexValidationError при невалидном ID зависимости', async () => {
-      await expect(service.update('1', ['invalid'])).rejects.toThrow(IndexValidationError);
+      await expect(
+        service.update('1', { status: 'pending', dependencies: ['invalid'] }),
+      ).rejects.toThrow(IndexValidationError);
     });
 
     it('должен выбросить CircularDependencyError при self-dependency', async () => {
-      await expect(service.update('1', ['1'])).rejects.toThrow(CircularDependencyError);
-      await expect(service.update('1', ['1'])).rejects.toThrow('зависит от самой себя');
+      await expect(service.update('1', { status: 'pending', dependencies: ['1'] })).rejects.toThrow(
+        CircularDependencyError,
+      );
+      await expect(service.update('1', { status: 'pending', dependencies: ['1'] })).rejects.toThrow(
+        'зависит от самой себя',
+      );
     });
 
     it('должен выбросить CircularDependencyError при цикле', async () => {
-      writeIndexFile({ '1': ['2'] });
+      writeIndexFile({ '1': { status: 'pending', dependencies: ['2'] } });
 
-      await expect(service.update('2', ['1'])).rejects.toThrow(CircularDependencyError);
-      await expect(service.update('2', ['1'])).rejects.toThrow('циклическая зависимость');
+      await expect(service.update('2', { status: 'pending', dependencies: ['1'] })).rejects.toThrow(
+        CircularDependencyError,
+      );
+      await expect(service.update('2', { status: 'pending', dependencies: ['1'] })).rejects.toThrow(
+        'циклическая зависимость',
+      );
     });
 
     it('должен использовать атомарную запись (temp + rename)', async () => {
-      await service.update('1', ['2']);
+      await service.update('1', { status: 'pending', dependencies: ['2'] });
 
       // Проверяем что .tmp файл не остался
       expect(vol.existsSync('/tasks/.hod/index.json.tmp')).toBe(false);
       // Проверяем что основной файл создан
       expect(vol.existsSync('/tasks/.hod/index.json')).toBe(true);
     });
-
-    it('должен обновить кэш после успешной записи', async () => {
-      await service.update('1', ['2']);
-
-      const impl = service as IndexServiceImpl;
-      expect(impl['cachedIndex']).toEqual({ '1': ['2'] });
-    });
   });
 
   describe('remove()', () => {
     it('должен удалить taskId из индекса', async () => {
-      writeIndexFile({ '1': [], '2': [] });
+      writeIndexFile({
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+      });
 
       await service.remove('1');
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '2': [] });
+      expect(content).toEqual({ '2': { status: 'pending', dependencies: [] } });
     });
 
     it('должен быть noop если taskId не существует', async () => {
-      writeIndexFile({ '1': [] });
+      writeIndexFile({ '1': { status: 'pending', dependencies: [] } });
 
       await service.remove('999');
 
       const content = readIndexFileSync();
-      expect(content).toEqual({ '1': [] });
+      expect(content).toEqual({ '1': { status: 'pending', dependencies: [] } });
     });
 
     it('должен быть noop если индекс пустой', async () => {
@@ -200,279 +216,124 @@ describe('IndexService', () => {
 
       await expect(service.remove('1')).resolves.not.toThrow();
     });
-
-    it('должен обновить кэш после успешного удаления', async () => {
-      writeIndexFile({ '1': [] });
-
-      await service.remove('1');
-
-      const impl = service as IndexServiceImpl;
-      expect(impl['cachedIndex']).toEqual({});
-    });
-  });
-
-  describe('rebuild()', () => {
-    const tasks: TaskDependencies[] = [
-      { id: '1', dependencies: [] },
-      { id: '2', dependencies: ['1'] },
-      { id: '3', dependencies: ['1', '2'] },
-    ];
-
-    it('должен пересобрать индекс из списка задач', async () => {
-      await service.rebuild(tasks);
-
-      const content = readIndexFileSync();
-      expect(content).toEqual({
-        '1': [],
-        '2': ['1'],
-        '3': ['1', '2'],
-      });
-    });
-
-    it('должен очистить старые записи', async () => {
-      writeIndexFile({ '99': [] });
-
-      await service.rebuild(tasks);
-
-      const content = readIndexFileSync();
-      expect(content).not.toHaveProperty('99');
-    });
-
-    it('должен сохранить зависимости из задач', async () => {
-      await service.rebuild(tasks);
-
-      const content = readIndexFileSync();
-      expect(content['3']).toEqual(['1', '2']);
-    });
-
-    it('должен записать пустой объект для пустого массива', async () => {
-      await service.rebuild([]);
-
-      const content = readIndexFileSync();
-      expect(content).toEqual({});
-    });
-
-    it('должен выбросить IndexValidationError при дубликате ID', async () => {
-      const duplicateTasks = [
-        { id: '1', dependencies: [] },
-        { id: '1', dependencies: [] },
-      ];
-
-      await expect(service.rebuild(duplicateTasks)).rejects.toThrow(IndexValidationError);
-      await expect(service.rebuild(duplicateTasks)).rejects.toThrow('Дубликат ID');
-    });
-
-    it('должен выбросить IndexValidationError при невалидном ID', async () => {
-      const invalidTasks = [{ id: 'invalid', dependencies: [] }];
-
-      await expect(service.rebuild(invalidTasks)).rejects.toThrow(IndexValidationError);
-    });
-
-    it('должен выбросить CircularDependencyError при цикле', async () => {
-      const cyclicTasks = [
-        { id: '1', dependencies: ['2'] },
-        { id: '2', dependencies: ['1'] },
-      ];
-
-      await expect(service.rebuild(cyclicTasks)).rejects.toThrow(CircularDependencyError);
-    });
-
-    it('должен auto-dedup зависимости', async () => {
-      const duplicateDepsTasks = [{ id: '1', dependencies: ['2', '2', '3'] }];
-
-      await service.rebuild(duplicateDepsTasks);
-
-      const content = readIndexFileSync();
-      expect(content).toEqual({ '1': ['2', '3'] });
-    });
-
-    it('должен auto-trim whitespace', async () => {
-      const whitespaceTasks = [{ id: '1', dependencies: [' 2 ', ' 3 '] }];
-
-      await service.rebuild(whitespaceTasks);
-
-      const content = readIndexFileSync();
-      expect(content).toEqual({ '1': ['2', '3'] });
-    });
-
-    it('должен обновить кэш после успешной пересборки', async () => {
-      await service.rebuild(tasks);
-
-      const impl = service as IndexServiceImpl;
-      expect(impl['cachedIndex']).toEqual({
-        '1': [],
-        '2': ['1'],
-        '3': ['1', '2'],
-      });
-    });
   });
 
   describe('getNextTasks()', () => {
     beforeEach(async () => {
-      // Создаём индекс с зависимостями
+      // Создаём индекс с зависимостями и статусами
       const indexData: IndexData = {
-        '1': [],
-        '2': ['1'],
-        '3': ['1', '2'],
-        '4': ['5'],
-        '5': [],
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: ['1'] },
+        '3': { status: 'pending', dependencies: ['1', '2'] },
+        '4': { status: 'pending', dependencies: ['5'] },
+        '5': { status: 'pending', dependencies: [] },
       };
       writeIndexFile(indexData);
       await service.load();
     });
 
-    it('должен вернуть задачи без зависимостей со статусом pending', () => {
-      const statuses = {
-        '1': 'pending',
-        '2': 'pending',
-        '5': 'pending',
-      };
+    it('должен вернуть задачи без зависимостей со статусом pending', async () => {
+      const result = await service.getNextTasks();
 
-      const result = service.getNextTasks(statuses);
-
-      // Задача 1 и 5 без зависимостей, задача 2 зависит от 1
+      // Задача 1 и 5 без зависимостей
       expect(result).toEqual(['1', '5']);
     });
 
-    it('должен вернуть задачи у которых все зависимости completed', () => {
-      const statuses = {
-        '1': 'completed',
-        '2': 'pending',
-        '3': 'pending',
-      };
+    it('должен вернуть задачи у которых все зависимости completed', async () => {
+      // Обновляем статус задачи 1 на completed
+      await service.update('1', { status: 'completed', dependencies: [] });
+      await service.update('3', { status: 'in_progress', dependencies: ['1', '2'] });
 
-      const result = service.getNextTasks(statuses);
+      const result = await service.getNextTasks();
 
-      // Задача 2 готова (зависимость 1 completed), задача 3 нет (зависит от 2)
-      expect(result).toEqual(['2']);
+      // Задача 2 готова (зависимость 1 completed), задача 5 без зависимостей
+      expect(result).toEqual(['2', '5']);
     });
 
-    it('должен вернуть пустой массив если нет готовых задач', () => {
-      const statuses = {
-        '2': 'pending',
-        '3': 'pending',
-      };
+    it('должен вернуть пустой массив если нет готовых задач', async () => {
+      // Удаляем задачи 1 и 5 (без зависимостей) из индекса
+      await service.remove('1');
+      await service.remove('5');
 
-      const result = service.getNextTasks(statuses);
-
-      // Обе задачи зависят от других задач
+      // Теперь оставшиеся задачи (2, 3, 4) все зависят от удаленных задач
+      const result = await service.getNextTasks();
       expect(result).toEqual([]);
     });
 
-    it('должен игнорировать задачи со статусом completed', () => {
-      const statuses = {
-        '1': 'completed',
-        '2': 'completed',
-        '5': 'completed',
-      };
+    it('должен игнорировать задачи со статусом completed', async () => {
+      await service.update('1', { status: 'completed', dependencies: [] });
+      await service.update('2', { status: 'completed', dependencies: ['1'] });
+      await service.update('5', { status: 'completed', dependencies: [] });
 
-      const result = service.getNextTasks(statuses);
+      const result = await service.getNextTasks();
 
-      expect(result).toEqual([]);
+      // Задачи 3 и 4 готовы: их зависимости (1, 2, 5) завершены
+      expect(result).toEqual(['3', '4']);
     });
 
-    it('должен возвращать отсортированные по ID', () => {
-      const statuses = {
-        '5': 'pending',
-        '1': 'pending',
-        '10': 'pending',
-      };
+    it('должен возвращать отсортированные по ID', async () => {
+      // Добавим несколько задач без зависимостей
+      await service.update('10', { status: 'pending', dependencies: [] });
+      await service.update('3', { status: 'pending', dependencies: [] });
 
-      const result = service.getNextTasks(statuses);
+      const result = await service.getNextTasks();
 
-      expect(result).toEqual(['1', '5', '10']);
+      expect(result).toEqual(['1', '3', '5', '10']);
     });
 
-    it('должен сортировать численно по сегментам ID', () => {
-      writeIndexFile({
-        '1': [],
-        '1.1': [],
-        '1.10': [],
-        '1.2': [],
-        '2': [],
-      });
+    it('должен сортировать численно по сегментам ID', async () => {
+      // Очищаем старый индекс - удаляем все задачи из beforeEach
+      await service.remove('1');
+      await service.remove('2');
+      await service.remove('3');
+      await service.remove('4');
+      await service.remove('5');
+      // Создаём новый индекс
+      await service.update('1', { status: 'pending', dependencies: [] });
+      await service.update('1.1', { status: 'pending', dependencies: [] });
+      await service.update('1.10', { status: 'pending', dependencies: [] });
+      await service.update('1.2', { status: 'pending', dependencies: [] });
+      await service.update('2', { status: 'pending', dependencies: [] });
 
-      const impl = service as IndexServiceImpl;
-      impl['cachedIndex'] = readIndexFileSync();
-
-      const statuses = {
-        '1': 'pending',
-        '1.1': 'pending',
-        '1.10': 'pending',
-        '1.2': 'pending',
-        '2': 'pending',
-      };
-
-      const result = service.getNextTasks(statuses);
+      const result = await service.getNextTasks();
 
       expect(result).toEqual(['1', '1.1', '1.2', '1.10', '2']);
     });
 
-    it('должен игнорировать задачи missing из allStatuses', () => {
-      const statuses = {
-        '1': 'completed',
-        '3': 'pending',
-      };
+    it('должен возвращать пустой массив если индекс пустой', async () => {
+      // Удаляем все задачи для получения пустого индекса
+      await service.remove('1');
+      await service.remove('2');
+      await service.remove('3');
+      await service.remove('4');
+      await service.remove('5');
 
-      const result = service.getNextTasks(statuses);
-
-      // Задача 3 зависит от 1 и 2, но 2 отсутствует в statuses
-      expect(result).toEqual([]);
-    });
-
-    it('должен игнорировать задачи с dependency на missing из allStatuses', () => {
-      const statuses = {
-        '2': 'pending',
-        // '1' отсутствует
-      };
-
-      const result = service.getNextTasks(statuses);
-
-      // Задача 2 зависит от 1, которой нет в statuses
-      expect(result).toEqual([]);
-    });
-
-    it('должен возвращать пустой массив если allStatuses пустой', () => {
-      const result = service.getNextTasks({});
+      const result = await service.getNextTasks();
 
       expect(result).toEqual([]);
     });
 
-    it('должен игнорировать задачи missing из индекса (использует пустой массив deps)', () => {
-      const statuses = {
-        '999': 'pending',
-      };
+    it('должен игнорировать задачи с dependency на missing из индекса', async () => {
+      // Задача 4 зависит от 5, но 5 существует
+      // Добавим задачу 6 которая зависит от несуществующей 99
+      await service.update('6', { status: 'pending', dependencies: ['99'] });
 
-      const result = service.getNextTasks(statuses);
+      const result = await service.getNextTasks();
 
-      // Задача 999 отсутствует в индексе, но без зависимостей считается готовой
-      expect(result).toEqual(['999']);
-    });
-  });
-
-  describe('resetCache()', () => {
-    it('должен сбрасывать кэш', async () => {
-      writeIndexFile({ '1': [] });
-      await service.load();
-
-      const impl = service as IndexServiceImpl;
-      expect(impl['cachedIndex']).not.toBeNull();
-
-      impl.resetCache();
-
-      expect(impl['cachedIndex']).toBeNull();
+      // Задача 6 не должна быть в списке (зависимость 99 отсутствует)
+      expect(result).toEqual(['1', '5']);
     });
   });
 
   describe('интеграционные сценарии', () => {
     it('должен работать полный цикл create-update-delete', async () => {
-      // Создаём через rebuild
-      await service.rebuild([{ id: '1', dependencies: [] }]);
+      // Создаём задачу через update
+      await service.update('1', { status: 'pending', dependencies: [] });
 
       // Обновляем
-      await service.update('1', ['2']);
+      await service.update('1', { status: 'completed', dependencies: ['2'] });
       let content = readIndexFileSync();
-      expect(content).toEqual({ '1': ['2'] });
+      expect(content).toEqual({ '1': { status: 'completed', dependencies: ['2'] } });
 
       // Удаляем
       await service.remove('1');
@@ -480,37 +341,18 @@ describe('IndexService', () => {
       expect(content).toEqual({});
     });
 
-    it('должен восстанавливаться после ошибок записи', async () => {
-      // Эмулируем ошибку записи - файл существует только для чтения
-      writeIndexFile({ '1': [] });
-
-      // Делаем update, который должен пройти успешно
-      await service.update('1', []);
-
-      const content = readIndexFileSync();
-      expect(content).toEqual({ '1': [] });
-    });
-
     it('должен корректно обрабатывать сложные графы зависимостей', async () => {
-      const complexTasks: TaskDependencies[] = [
-        { id: '1', dependencies: [] },
-        { id: '2', dependencies: ['1'] },
-        { id: '3', dependencies: ['1'] },
-        { id: '4', dependencies: ['2', '3'] },
-        { id: '5', dependencies: ['4'] },
-      ];
+      // Создаём задачи через update
+      await service.update('1', { status: 'pending', dependencies: [] });
+      await service.update('2', { status: 'pending', dependencies: ['1'] });
+      await service.update('3', { status: 'pending', dependencies: ['1'] });
+      await service.update('4', { status: 'pending', dependencies: ['2', '3'] });
+      await service.update('5', { status: 'pending', dependencies: ['4'] });
 
-      await service.rebuild(complexTasks);
+      // Помечаем задачу 1 как completed
+      await service.update('1', { status: 'completed', dependencies: [] });
 
-      const statuses = {
-        '1': 'completed',
-        '2': 'pending',
-        '3': 'pending',
-        '4': 'pending',
-        '5': 'pending',
-      };
-
-      const result = service.getNextTasks(statuses);
+      const result = await service.getNextTasks();
 
       // Задачи 2 и 3 готовы (зависимость 1 completed)
       expect(result).toEqual(['2', '3']);

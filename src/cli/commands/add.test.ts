@@ -49,7 +49,6 @@ const createMockServices = (overrides?: Partial<Services>): Services => ({
     load: vi.fn().mockResolvedValue({}),
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
-    rebuild: vi.fn().mockResolvedValue(undefined),
     getNextTasks: vi.fn().mockReturnValue([]),
   } as unknown as IndexService,
   parser: ParserService,
@@ -545,7 +544,7 @@ describe('add command (integration with mocked services)', () => {
 
     expect(id).toBe('1');
     expect(services.storage.create).toHaveBeenCalledOnce();
-    expect(services.index.update).toHaveBeenCalledWith('1', []);
+    expect(services.index.update).toHaveBeenCalledWith('1', { status: 'pending', dependencies: [] });
   });
 
   it('должен создавать задачу с зависимостями', async () => {
@@ -557,7 +556,7 @@ describe('add command (integration with mocked services)', () => {
     const id = await addCommand(options, services);
 
     expect(id).toBe('1');
-    expect(services.index.update).toHaveBeenCalledWith('1', ['1', '2', '3']);
+    expect(services.index.update).toHaveBeenCalledWith('1', { status: 'pending', dependencies: ['1', '2', '3'] });
   });
 
   it('должен применять дефолтные значения', async () => {
@@ -570,8 +569,9 @@ describe('add command (integration with mocked services)', () => {
     const callArgs = (services.storage.create as ReturnType<typeof vi.fn>).mock.calls[0];
     const markdown = callArgs[1] as string;
 
-    expect(markdown).toContain('# Status');
-    expect(markdown).toContain('pending');
+    // Status больше не пишется в markdown (только в index)
+    expect(markdown).toContain('# Title');
+    expect(markdown).toContain('Task');
   });
 
   it('должен выбрасывать ошибку для неизвестного поля', async () => {

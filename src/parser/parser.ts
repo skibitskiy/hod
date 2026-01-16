@@ -23,6 +23,10 @@ class ParserServiceImpl implements ParserService {
   }
 
   serialize(task: ParsedTask): string {
+    // Явно исключаем status из сериализации (он хранится только в индексе)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { status, dependencies, ...rest } = task;
+
     const parts: string[] = [];
 
     // 1. Title (обязателен)
@@ -36,15 +40,12 @@ class ParserServiceImpl implements ParserService {
       parts.push('', '# Description', task.description.trim());
     }
 
-    // 3. Status
-    parts.push('', '# Status', task.status);
-
-    // 4. Dependencies (всегда присутствует)
-    const depsValue = this.serializeDependencies(task.dependencies);
+    // 3. Dependencies (всегда присутствует)
+    const depsValue = this.serializeDependencies(dependencies);
     parts.push('', '# Dependencies', depsValue);
 
-    // 5. Кастомные поля в алфавитном порядке
-    const customFields = this.getCustomFields(task);
+    // 4. Кастомные поля в алфавитном порядке (status уже исключен)
+    const customFields = this.getCustomFields(rest);
     const sortedKeys = Object.keys(customFields).sort();
 
     for (const key of sortedKeys) {
@@ -108,8 +109,9 @@ class ParserServiceImpl implements ParserService {
     // Description опционален
     const description = sections.get('Description');
 
-    // Status с дефолтом
-    const status = sections.get('Status') || 'pending';
+    // Status больше не читаем из markdown - он только в индексе
+    // Используем дефолтное значение
+    const status = 'pending';
 
     // Dependencies с дефолтом и валидацией
     const dependencies = this.parseDependencies(sections.get('Dependencies'));
@@ -169,8 +171,8 @@ class ParserServiceImpl implements ParserService {
     return validDeps.join(', ');
   }
 
-  private getCustomFields(task: ParsedTask): Record<string, string> {
-    const standardKeys = new Set(['title', 'description', 'status', 'dependencies']);
+  private getCustomFields(task: Record<string, unknown>): Record<string, string> {
+    const standardKeys = new Set(['title', 'description']);
     const custom: Record<string, string> = {};
 
     for (const [key, value] of Object.entries(task)) {
