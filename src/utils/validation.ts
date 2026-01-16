@@ -26,6 +26,20 @@ export function validateTaskId(id: string): void {
 }
 
 /**
+ * Проверяет формат ID задачи для CLI команд.
+ * Выбрасывает обычный Error вместо IndexValidationError для дружелюбных сообщений пользователю.
+ * @throws {Error} при невалидном ID
+ */
+export function validateCliId(id: string): void {
+  if (id.length > MAX_ID_LENGTH) {
+    throw new Error(`ID задачи превышает максимальную длину ${MAX_ID_LENGTH} символов: '${id}'`);
+  }
+  if (!ID_REGEX.test(id)) {
+    throw new Error(`Невалидный формат ID: '${id}'`);
+  }
+}
+
+/**
  * Проверяет формат ID задачи без выбрасывания ошибки.
  * @returns true если ID валиден, иначе false
  */

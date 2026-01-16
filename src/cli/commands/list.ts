@@ -171,7 +171,9 @@ function outputTree(filtered: Array<{ id: string; task: ParsedTask }>, asJson: b
   // Detect orphaned subtasks
   const orphans = detectOrphans(tree);
   if (orphans.length > 0) {
-    console.warn(`Предупреждение: обнаружены ${orphans.length} подзадач с отсутствующими родителями: ${orphans.join(', ')}`);
+    console.warn(
+      `Предупреждение: обнаружены ${orphans.length} подзадач с отсутствующими родителями: ${orphans.join(', ')}`,
+    );
   }
 
   // Output tree

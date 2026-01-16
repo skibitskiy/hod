@@ -415,11 +415,10 @@ describe('add command - helper functions (unit tests)', () => {
           { id: '1', content: '' },
           { id: '1.1', content: '' },
         ]),
-        read: vi.fn()
-          .mockImplementation((id: string) => {
-            if (id === '1.1') return Promise.resolve({ content: '' });
-            return Promise.reject(new StorageNotFoundError('Not found'));
-          }),
+        read: vi.fn().mockImplementation((id: string) => {
+          if (id === '1.1') return Promise.resolve({ content: '' });
+          return Promise.reject(new StorageNotFoundError('Not found'));
+        }),
       } as unknown as StorageService;
 
       const id = await generateSubtaskId('1', storage);
@@ -434,11 +433,10 @@ describe('add command - helper functions (unit tests)', () => {
           { id: '1.5', content: '' },
           { id: '1.2', content: '' },
         ]),
-        read: vi.fn()
-          .mockImplementation((id: string) => {
-            if (['1.1', '1.2', '1.5'].includes(id)) return Promise.resolve({ content: '' });
-            return Promise.reject(new StorageNotFoundError('Not found'));
-          }),
+        read: vi.fn().mockImplementation((id: string) => {
+          if (['1.1', '1.2', '1.5'].includes(id)) return Promise.resolve({ content: '' });
+          return Promise.reject(new StorageNotFoundError('Not found'));
+        }),
       } as unknown as StorageService;
 
       const id = await generateSubtaskId('1', storage);
@@ -453,11 +451,10 @@ describe('add command - helper functions (unit tests)', () => {
           { id: '1.1.1', content: '' }, // should be ignored
           { id: '1.2', content: '' },
         ]),
-        read: vi.fn()
-          .mockImplementation((id: string) => {
-            if (['1.1', '1.1.1', '1.2'].includes(id)) return Promise.resolve({ content: '' });
-            return Promise.reject(new StorageNotFoundError('Not found'));
-          }),
+        read: vi.fn().mockImplementation((id: string) => {
+          if (['1.1', '1.1.1', '1.2'].includes(id)) return Promise.resolve({ content: '' });
+          return Promise.reject(new StorageNotFoundError('Not found'));
+        }),
       } as unknown as StorageService;
 
       const id = await generateSubtaskId('1', storage);
@@ -470,9 +467,7 @@ describe('add command - helper functions (unit tests)', () => {
       const longParent = '1.' + '123456789'.repeat(5) + '1234'; // 49 chars
 
       const storage = {
-        list: vi.fn().mockResolvedValue([
-          { id: longParent, content: '' },
-        ]),
+        list: vi.fn().mockResolvedValue([{ id: longParent, content: '' }]),
         read: vi.fn().mockRejectedValue(new StorageNotFoundError('Not found')),
       } as unknown as StorageService;
 
@@ -544,7 +539,10 @@ describe('add command (integration with mocked services)', () => {
 
     expect(id).toBe('1');
     expect(services.storage.create).toHaveBeenCalledOnce();
-    expect(services.index.update).toHaveBeenCalledWith('1', { status: 'pending', dependencies: [] });
+    expect(services.index.update).toHaveBeenCalledWith('1', {
+      status: 'pending',
+      dependencies: [],
+    });
   });
 
   it('должен создавать задачу с зависимостями', async () => {
@@ -556,7 +554,10 @@ describe('add command (integration with mocked services)', () => {
     const id = await addCommand(options, services);
 
     expect(id).toBe('1');
-    expect(services.index.update).toHaveBeenCalledWith('1', { status: 'pending', dependencies: ['1', '2', '3'] });
+    expect(services.index.update).toHaveBeenCalledWith('1', {
+      status: 'pending',
+      dependencies: ['1', '2', '3'],
+    });
   });
 
   it('должен применять дефолтные значения', async () => {

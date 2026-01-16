@@ -4,6 +4,7 @@ import type { Config } from '../../config/types.js';
 import type { StorageService } from '../../storage/storage.js';
 import { StorageNotFoundError } from '../../storage/errors.js';
 import { ParentValidationError, CircularDependencyError } from '../errors.js';
+import { MAX_ID_LENGTH } from '../../utils/validation.js';
 
 interface NodeError extends Error {
   cause?: unknown;
@@ -139,7 +140,6 @@ async function generateMainTaskId(storage: StorageService): Promise<string> {
  * @throws {Error} if generated ID exceeds 50 characters
  */
 async function generateSubtaskId(parent: string, storage: StorageService): Promise<string> {
-  const MAX_ID_LENGTH = 50;
   let attempt = 0;
   const maxAttempts = 100; // Safety limit
 
@@ -154,9 +154,7 @@ async function generateSubtaskId(parent: string, storage: StorageService): Promi
     });
 
     // Extract subtask numbers
-    const subNumbers = siblings
-      .map((t) => Number(t.id.split('.').pop()))
-      .filter((n) => !isNaN(n));
+    const subNumbers = siblings.map((t) => Number(t.id.split('.').pop())).filter((n) => !isNaN(n));
 
     // Find max, increment with attempt offset for collision handling
     const max = subNumbers.length > 0 ? Math.max(...subNumbers) : 0;
@@ -270,7 +268,7 @@ async function validateParent(parent: string, storage: StorageService): Promise<
   const trimmed = parent.trim();
   if (!trimmed) {
     throw new ParentValidationError(
-      "ID родительской задачи не может быть пустым или содержать только пробелы",
+      'ID родительской задачи не может быть пустым или содержать только пробелы',
     );
   }
 
