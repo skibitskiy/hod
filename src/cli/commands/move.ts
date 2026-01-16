@@ -84,21 +84,26 @@ export async function moveCommand(
   const currentContent = await services.storage.read(id);
   const currentTask = services.parser.parse(currentContent);
 
-  // 10. Generate new ID under the new parent
+  // 10. Get current status/dependencies from index (not from ParsedTask)
+  const currentIndexData = await services.index.load();
+  const currentStatus = currentIndexData[id]?.status ?? 'pending';
+  const currentDependencies = currentIndexData[id]?.dependencies ?? [];
+
+  // 11. Generate new ID under the new parent
   const newId = await generateSubtaskId(parent, services.storage);
 
-  // 11. Check dependencies for cycles considering the new ID
+  // 12. Check dependencies for cycles considering the new ID
   // Note: index.update() will do this automatically, but we need to handle rollback
 
-  // 12. Create new task with new ID via storage.create()
+  // 13. Create new task with new ID via storage.create()
   const markdown = services.parser.serialize(currentTask);
   await services.storage.create(newId, markdown);
 
-  // 13. Update index via index.update() (with rollback on error)
+  // 14. Update index via index.update() (with rollback on error)
   try {
     await services.index.update(newId, {
-      status: currentTask.status,
-      dependencies: currentTask.dependencies,
+      status: currentStatus,
+      dependencies: currentDependencies,
     });
   } catch (error) {
     // Rollback: delete new task from storage

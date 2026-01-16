@@ -10,51 +10,17 @@ describe('ParserService', () => {
 # Description
 Описание задачи
 
-# Status
-pending
-
-# Dependencies
-1, 2, 5`;
+# CustomField
+custom value`;
 
       const result = ParserService.parse(markdown);
 
       expect(result.title).toBe('Название задачи');
       expect(result.description).toBe('Описание задачи');
-      expect(result.status).toBe('pending');
-      expect(result.dependencies).toEqual(['1', '2', '5']);
-    });
-
-    it('должен распарсить Dependencies как массив строк', () => {
-      const markdown = `# Title
-Task
-
-# Dependencies
-1, 2, 5`;
-
-      const result = ParserService.parse(markdown);
-
-      expect(result.dependencies).toEqual(['1', '2', '5']);
-    });
-
-    it('должен вернуть пустой массив если Dependencies пустой', () => {
-      const markdown = `# Title
-Task
-
-# Dependencies
-`;
-
-      const result = ParserService.parse(markdown);
-
-      expect(result.dependencies).toEqual([]);
-    });
-
-    it('должен вернуть пустой массив если Dependencies отсутствует (fallback)', () => {
-      const markdown = `# Title
-Task`;
-
-      const result = ParserService.parse(markdown);
-
-      expect(result.dependencies).toEqual([]);
+      expect(result.customfield).toBe('custom value');
+      // Status и dependencies теперь только в index, не в markdown
+      expect(result.status).toBeUndefined();
+      expect(result.dependencies).toBeUndefined();
     });
 
     it('должен работать с пустым description', () => {
@@ -65,8 +31,6 @@ Task`;
 
       expect(result.title).toBe('Task');
       expect(result.description).toBeUndefined();
-      // Status теперь всегда 'pending' (читается из индекса, не из markdown)
-      expect(result.status).toBe('pending');
     });
 
     it('должен работать с многострочными значениями', () => {
@@ -78,8 +42,24 @@ Task`;
       const result = ParserService.parse(markdown);
 
       expect(result.title).toBe('строка1\n\nстрока2');
-      // Status теперь всегда 'pending' (читается из индекса, не из markdown)
-      expect(result.status).toBe('pending');
+    });
+
+    it('должен игнорировать Status и Dependencies секции', () => {
+      const markdown = `# Title
+Task
+
+# Status
+completed
+
+# Dependencies
+1, 2, 5`;
+
+      const result = ParserService.parse(markdown);
+
+      expect(result.title).toBe('Task');
+      // Status и dependencies игнорируются - они только в index
+      expect(result.status).toBeUndefined();
+      expect(result.dependencies).toBeUndefined();
     });
 
     it('должен игнорировать неизвестные поля', () => {
@@ -112,49 +92,6 @@ desc`;
       expect(() => ParserService.parse(markdown)).toThrow(ParseError);
     });
 
-    it('должен выбросить ParseError при невалидном ID зависимости', () => {
-      const markdown = `# Title
-Task
-
-# Dependencies
-1, abc, 3`;
-
-      expect(() => ParserService.parse(markdown)).toThrow(ParseError);
-    });
-
-    it('должен использовать дефолтный status "pending"', () => {
-      const markdown = `# Title
-Task`;
-
-      const result = ParserService.parse(markdown);
-
-      expect(result.status).toBe('pending');
-    });
-
-    it('должен trim-ить ID зависимостей', () => {
-      const markdown = `# Title
-Task
-
-# Dependencies
-1,  2 , 3`;
-
-      const result = ParserService.parse(markdown);
-
-      expect(result.dependencies).toEqual(['1', '2', '3']);
-    });
-
-    it('должен фильтровать пустые элементы в Dependencies', () => {
-      const markdown = `# Title
-Task
-
-# Dependencies
-1, , 3`;
-
-      const result = ParserService.parse(markdown);
-
-      expect(result.dependencies).toEqual(['1', '3']);
-    });
-
     it('должен использовать первое вхождение секции', () => {
       const markdown = `# Title
 First
@@ -173,67 +110,33 @@ Second`;
       const task = {
         title: 'Task',
         description: 'Desc',
-        status: 'done',
-        dependencies: ['1', '2'],
       };
 
       const result = ParserService.serialize(task);
 
-      // Status больше не сериализуется в markdown (только в index)
+      // Status и dependencies больше не сериализуются в markdown
       expect(result).toBe(`# Title
 Task
 
 # Description
 Desc
-
-# Dependencies
-1, 2
 `);
     });
 
-    it('должен всегда добавлять #Dependencies (пустой если нет)', () => {
+    it('должен пропускать пустые поля', () => {
       const task = {
         title: 'Task',
-        status: 'pending',
-        dependencies: [],
-      };
-
-      const result = ParserService.serialize(task);
-
-      expect(result).toContain('# Dependencies\n');
-    });
-
-    it('должен правильно сериализовать Dependencies (через запятую)', () => {
-      const task = {
-        title: 'Task',
-        status: 'pending',
-        dependencies: ['1', '2', '5'],
-      };
-
-      const result = ParserService.serialize(task);
-
-      expect(result).toContain('1, 2, 5');
-    });
-
-    it('должен пропускать пустые поля кроме Dependencies', () => {
-      const task = {
-        title: 'Task',
-        status: 'pending',
-        dependencies: [],
         description: '',
       };
 
       const result = ParserService.serialize(task);
 
       expect(result).not.toContain('# Description');
-      expect(result).toContain('# Dependencies');
     });
 
     it('должен пропускать undefined поля', () => {
       const task = {
         title: 'Task',
-        status: 'pending',
-        dependencies: [],
         description: undefined,
         priority: undefined,
       };
@@ -247,8 +150,6 @@ Desc
     it('должен сериализовать кастомные поля в алфавитном порядке', () => {
       const task = {
         title: 'Task',
-        status: 'pending',
-        dependencies: [],
         // Custom fields теперь lowercase для консистентности
         priority: 'high',
         assignee: 'user',

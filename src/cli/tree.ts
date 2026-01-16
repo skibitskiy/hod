@@ -23,9 +23,13 @@ export interface TreeBuildResult {
  * Orphaned subtasks (whose parent doesn't exist) are placed at root level.
  *
  * @param tasks - Array of tasks with their IDs and parsed content
+ * @param indexData - Index data containing status and dependencies for each task
  * @returns Tree structure with root nodes and any warnings
  */
-export function buildTree(tasks: Array<{ id: string; task: ParsedTask }>): TreeBuildResult {
+export function buildTree(
+  tasks: Array<{ id: string; task: ParsedTask }>,
+  indexData?: Record<string, { status: string; dependencies: string[] }>,
+): TreeBuildResult {
   const warnings: string[] = [];
 
   // Pre-filter: validate IDs before tree building
@@ -45,8 +49,11 @@ export function buildTree(tasks: Array<{ id: string; task: ParsedTask }>): TreeB
   const existingIds = new Set<string>();
 
   for (const { id, task } of validTasks) {
+    // Get status from index (with fallback to 'pending' if not in index)
+    const status = indexData?.[id]?.status ?? 'pending';
+
     const node = {
-      task: { id, title: task.title, status: task.status },
+      task: { id, title: task.title, status },
       children: [],
     };
 

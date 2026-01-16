@@ -69,6 +69,12 @@ describe('updateCommand', () => {
           ...createMockServices().storage,
           read: vi.fn().mockResolvedValue(existingTaskMarkdown),
         } as unknown as StorageService,
+        index: {
+          ...createMockServices().index,
+          load: vi.fn().mockResolvedValue({
+            '1': { status: 'pending', dependencies: ['1', '2'] },
+          }),
+        } as unknown as IndexService,
       });
 
       const options: UpdateCommandOptions = {

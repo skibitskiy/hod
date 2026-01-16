@@ -18,7 +18,10 @@ const mockConfig: Config = {
   },
 };
 
-const createMockServices = (overrides?: Partial<Services>): Services => ({
+const createMockServices = (
+  indexData?: Record<string, { status: string; dependencies: string[] }>,
+  overrides?: Partial<Services>,
+): Services => ({
   config: {
     load: vi.fn().mockResolvedValue(mockConfig),
     validate: vi.fn(),
@@ -29,7 +32,7 @@ const createMockServices = (overrides?: Partial<Services>): Services => ({
     delete: vi.fn().mockResolvedValue(undefined),
   } as unknown as StorageService,
   index: {
-    load: vi.fn().mockResolvedValue({}),
+    load: vi.fn().mockResolvedValue(indexData ?? {}),
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
     getNextTasks: vi.fn().mockReturnValue([]),
@@ -81,6 +84,12 @@ describe('listCommand', () => {
   });
 
   describe('фильтрация', () => {
+    const mockIndexData: Record<string, { status: string; dependencies: string[] }> = {
+      '1': { status: 'pending', dependencies: [] },
+      '2': { status: 'completed', dependencies: ['1'] },
+      '3': { status: 'pending', dependencies: [] },
+    };
+
     const mockTasks = [
       {
         id: '1',
@@ -97,7 +106,7 @@ describe('listCommand', () => {
     ];
 
     it('должен фильтровать по одному полю (status)', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -108,15 +117,13 @@ describe('listCommand', () => {
       await listCommand(options, services);
 
       const output = logs.join('\n');
-      // Статус больше не читается из markdown (всегда 'pending' при парсинге)
-      // Поэтому все задачи с 'pending' статусом будут показаны
       expect(output).toContain('Задача 1');
-      expect(output).toContain('Задача 2');
+      expect(output).not.toContain('Задача 2');
       expect(output).toContain('Задача 3');
     });
 
     it('должен фильтровать по нескольким полям (AND логика)', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -133,7 +140,7 @@ describe('listCommand', () => {
     });
 
     it('должен быть case-sensitive', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -149,7 +156,7 @@ describe('listCommand', () => {
     });
 
     it('должен показывать все задачи при пустых фильтрах', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -170,8 +177,12 @@ describe('listCommand', () => {
         { id: '1', content: '# Title\nЗадача 1\n# Priority\nhigh' },
         { id: '2', content: '# Title\nЗадача 2' }, // No priority
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -187,7 +198,7 @@ describe('listCommand', () => {
     });
 
     it('пустой результат → "Нет задач"', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -206,8 +217,13 @@ describe('listCommand', () => {
         { id: '2', content: '# Title\nЗадача 2\n# Priority\n' }, // Empty value
         { id: '3', content: '# Title\nЗадача 3' }, // No priority field
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+        '3': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -226,19 +242,24 @@ describe('listCommand', () => {
   });
 
   describe('JSON формат вывода', () => {
+    const mockIndexData: Record<string, { status: string; dependencies: string[] }> = {
+      '1': { status: 'pending', dependencies: ['3', '2'] }, // unsorted
+      '2': { status: 'completed', dependencies: [] },
+    };
+
     const mockTasks = [
       {
         id: '1',
-        content: '# Title\nЗадача 1\n# Status\npending\n# Dependencies\n2, 3',
+        content: '# Title\nЗадача 1',
       },
       {
         id: '2',
-        content: '# Title\nЗадача 2\n# Status\ncompleted',
+        content: '# Title\nЗадача 2',
       },
     ];
 
     it('должен выводить валидный JSON', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -253,7 +274,7 @@ describe('listCommand', () => {
     });
 
     it('должен сортировать dependencies', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -269,7 +290,7 @@ describe('listCommand', () => {
     });
 
     it('пустой результат → []', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -286,8 +307,11 @@ describe('listCommand', () => {
       const tasks = [
         { id: '1', content: '# Title\nЗадача 1' }, // No description, no priority (custom field)
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -301,14 +325,14 @@ describe('listCommand', () => {
       const parsed = JSON.parse(output);
       expect(parsed[0]).toHaveProperty('id');
       expect(parsed[0]).toHaveProperty('title');
-      expect(parsed[0]).toHaveProperty('status'); // Has default value
-      expect(parsed[0]).toHaveProperty('dependencies'); // Always included
+      expect(parsed[0]).toHaveProperty('status'); // From index
+      expect(parsed[0]).toHaveProperty('dependencies'); // From index
       expect(parsed[0]).not.toHaveProperty('description'); // Missing, skipped
       expect(parsed[0]).not.toHaveProperty('priority'); // Missing, skipped
     });
 
     it('комбинирует json с фильтрами', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -320,28 +344,31 @@ describe('listCommand', () => {
 
       const output = logs.join('\n');
       const parsed = JSON.parse(output);
-      // Статус больше не читается из markdown (всегда 'pending' при парсинге)
-      // Поэтому все задачи с 'pending' статусом будут показаны
-      expect(parsed).toHaveLength(2);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].id).toBe('1');
       expect(parsed[0].status).toBe('pending');
-      expect(parsed[1].status).toBe('pending');
     });
   });
 
   describe('табличный формат вывода', () => {
+    const mockIndexData: Record<string, { status: string; dependencies: string[] }> = {
+      '1': { status: 'pending', dependencies: [] },
+      '2': { status: 'completed', dependencies: [] },
+    };
+
     const mockTasks = [
       {
         id: '1',
-        content: '# Title\nКороткая\n# Status\npending',
+        content: '# Title\nКороткая',
       },
       {
         id: '2',
-        content: '# Title\nОчень длинная задача которая расширяет колонку\n# Status\ncompleted',
+        content: '# Title\nОчень длинная задача которая расширяет колонку',
       },
     ];
 
     it('должен выводить таблицу с заголовками', async () => {
-      const services = createMockServices({
+      const services = createMockServices(mockIndexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(mockTasks),
@@ -359,10 +386,13 @@ describe('listCommand', () => {
 
     it('должен показывать "-" для пустых значений', async () => {
       const tasks = [
-        { id: '1', content: '# Title\nЗадача 1' }, // No status
+        { id: '1', content: '# Title\nЗадача 1' }, // No status in markdown
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -373,20 +403,25 @@ describe('listCommand', () => {
       await listCommand(options, services);
 
       const output = logs.join('\n');
-      // Проверяем что есть строка с "-" в статусе
-      expect(output).toMatch(/1\s+-/);
+      // Status comes from index, so it should be 'pending', not '-'
+      expect(output).toContain('pending');
     });
   });
 
   describe('обработка ошибок парсинга', () => {
     it('должен пропускать задачи с ошибками парсинга с warning', async () => {
       const tasks = [
-        { id: '1', content: '# Title\nЗадача 1\n# Status\npending' },
+        { id: '1', content: '# Title\nЗадача 1' },
         { id: '2', content: 'Невалидный markdown без Title' },
-        { id: '3', content: '# Title\nЗадача 3\n# Status\ncompleted' },
+        { id: '3', content: '# Title\nЗадача 3' },
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+        '3': { status: 'completed', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -414,7 +449,7 @@ describe('listCommand', () => {
         throw new Error('process.exit(1) called');
       });
 
-      const services = createMockServices({
+      const services = createMockServices(undefined, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockRejectedValue(storageError),
@@ -443,8 +478,12 @@ describe('listCommand', () => {
           content: '# Title\nЗадача 2\n# Priority\nlow',
         },
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -468,8 +507,11 @@ describe('listCommand', () => {
           content: '# Title\nЗадача 1\n# Description\nСтрока1\nСтрока2\nСтрока3',
         },
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),
@@ -492,8 +534,11 @@ describe('listCommand', () => {
           content: '# Title\nЗадача 1\n# Description\nСтрока1\nСтрока2',
         },
       ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+      };
 
-      const services = createMockServices({
+      const services = createMockServices(indexData, {
         storage: {
           ...createMockServices().storage,
           list: vi.fn().mockResolvedValue(tasks),

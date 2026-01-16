@@ -96,10 +96,12 @@ describe('add command (integration tests with memfs)', () => {
 
       const content = await services.storage.read('1');
       const parsed = ParserService.parse(content);
+      const indexData = await services.index.load();
 
       expect(parsed.title).toBe('Task');
-      expect(parsed.status).toBe('pending');
-      expect(parsed.dependencies).toEqual([]);
+      // Status и dependencies теперь в index, не в markdown
+      expect(indexData['1']?.status).toBe('pending');
+      expect(indexData['1']?.dependencies).toEqual([]);
     });
   });
 
@@ -136,8 +138,6 @@ describe('add command (integration tests with memfs)', () => {
         '1.1',
         ParserService.serialize({
           title: 'Subtask',
-          status: 'pending',
-          dependencies: ['1'],
         }),
       );
       await services.index.update('1.1', { status: 'pending', dependencies: ['1'] });
@@ -154,8 +154,6 @@ describe('add command (integration tests with memfs)', () => {
           taskId,
           ParserService.serialize({
             title: `Task ${taskId}`,
-            status: 'pending',
-            dependencies: [],
           }),
         );
         await services.index.update(taskId, { status: 'pending', dependencies: [] });
@@ -184,8 +182,10 @@ describe('add command (integration tests with memfs)', () => {
       const index = await services.index.load();
       expect(index[id]).toEqual({ status: 'pending', dependencies: ['1', '2'] });
 
+      // Dependencies больше нет в markdown (только в index)
       const content = await services.storage.read(id);
-      expect(content).toContain('# Dependencies\n1, 2');
+      expect(content).toContain('# Title\nTask with deps');
+      expect(content).not.toContain('# Dependencies');
     });
 
     it('должен trim пробелы в зависимостях', async () => {
@@ -289,8 +289,9 @@ describe('add command (integration tests with memfs)', () => {
       expect(lines[0]).toBe('# Title');
       expect(lines[1]).toBe('Test Task');
       expect(lines).toContain('# Description');
-      // Status больше не пишется в markdown (только в index)
-      expect(lines).toContain('# Dependencies');
+      // Status и Dependencies больше не пишутся в markdown (только в index)
+      expect(lines).not.toContain('# Status');
+      expect(lines).not.toContain('# Dependencies');
     });
 
     it('должен включать все стандартные секции', async () => {
@@ -302,10 +303,12 @@ describe('add command (integration tests with memfs)', () => {
 
       const content = await services.storage.read('1');
       const parsed = ParserService.parse(content);
+      const indexData = await services.index.load();
 
       expect(parsed.title).toBeDefined();
-      expect(parsed.status).toBeDefined();
-      expect(parsed.dependencies).toBeDefined();
+      // Status и dependencies теперь только в index, не в markdown
+      expect(indexData['1']?.status).toBeDefined();
+      expect(indexData['1']?.dependencies).toBeDefined();
     });
   });
 
@@ -377,8 +380,6 @@ describe('add command (integration tests with memfs)', () => {
         '100',
         ParserService.serialize({
           title: 'Big ID task',
-          status: 'pending',
-          dependencies: [],
         }),
       );
       await services.index.update('100', { status: 'pending', dependencies: [] });

@@ -205,20 +205,14 @@ function parseDependencies(depsArg?: string): string[] {
  * Maps markdown keys to parser-compatible format.
  * @throws {Error} if custom field value is not a string
  */
-function fieldsToParsedTask(fields: Record<string, unknown>, dependencies: string[]): ParsedTask {
+function fieldsToParsedTask(fields: Record<string, unknown>): ParsedTask {
   // Validate standard fields are strings
   const title = fields.Title;
-  const status = fields.Status;
   const description = fields.Description;
 
   if (typeof title !== 'string') {
     throw new Error(
       `Невалидное значение для поля 'Title': ожидается строка, получено ${typeof title}`,
-    );
-  }
-  if (status !== undefined && typeof status !== 'string') {
-    throw new Error(
-      `Невалидное значение для поля 'Status': ожидается строка, получено ${typeof status}`,
     );
   }
   if (description !== undefined && typeof description !== 'string') {
@@ -228,8 +222,6 @@ function fieldsToParsedTask(fields: Record<string, unknown>, dependencies: strin
   }
 
   const task: ParsedTask = {
-    dependencies,
-    status: status || 'pending',
     title,
   };
 
@@ -238,8 +230,8 @@ function fieldsToParsedTask(fields: Record<string, unknown>, dependencies: strin
     task.description = description;
   }
 
-  // Add custom fields with type validation
-  const standardKeys = new Set(['Title', 'Description', 'Status']);
+  // Add custom fields with type validation (status is now a custom field in config)
+  const standardKeys = new Set(['Title', 'Description']);
   for (const [key, value] of Object.entries(fields)) {
     if (!standardKeys.has(key)) {
       // Validate that custom fields are strings
@@ -248,7 +240,8 @@ function fieldsToParsedTask(fields: Record<string, unknown>, dependencies: strin
           `Невалидное значение для поля '${key}': ожидается строка, получено ${typeof value}`,
         );
       }
-      task[key] = value;
+      // Convert to lowercase to match parser behavior
+      task[key.toLowerCase()] = value;
     }
   }
 
@@ -335,8 +328,11 @@ export async function addCommand(options: AddCommandOptions, services: Services)
     );
   }
 
-  // 10. Build ParsedTask
-  const parsedTask = fieldsToParsedTask(withDefaults, dependencies);
+  // 10. Get status from defaults or use 'pending'
+  const status = withDefaults.Status || 'pending';
+
+  // 11. Build ParsedTask (without status and dependencies - they go to index)
+  const parsedTask = fieldsToParsedTask(withDefaults);
 
   // 11. Serialize to Markdown
   const markdown = services.parser.serialize(parsedTask);
@@ -346,7 +342,7 @@ export async function addCommand(options: AddCommandOptions, services: Services)
 
   // 13. Update Index (with rollback)
   try {
-    await services.index.update(id, { status: parsedTask.status, dependencies });
+    await services.index.update(id, { status, dependencies });
   } catch (error) {
     // Rollback: delete the created task file
     try {

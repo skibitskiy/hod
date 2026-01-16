@@ -1,9 +1,7 @@
 export interface ParsedTask {
   title: string;
   description?: string;
-  status: string;
-  dependencies: string[];
-  [key: string]: string | string[] | undefined;
+  [key: string]: string | undefined;
 }
 
 export class ParseError extends Error {

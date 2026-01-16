@@ -1,8 +1,6 @@
 import type { ParsedTask } from './types.js';
 import { ParseError } from './types.js';
 
-const DEPENDENCY_ID_REGEX = /^\d+(\.\d+)*$/;
-
 export interface ParserService {
   parse(markdown: string): ParsedTask;
   serialize(task: ParsedTask): string;
@@ -23,10 +21,7 @@ class ParserServiceImpl implements ParserService {
   }
 
   serialize(task: ParsedTask): string {
-    // Явно исключаем status из сериализации (он хранится только в индексе)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { status, dependencies, ...rest } = task;
-
+    // Status и dependencies хранятся только в индексе, не в markdown
     const parts: string[] = [];
 
     // 1. Title (обязателен)
@@ -40,12 +35,8 @@ class ParserServiceImpl implements ParserService {
       parts.push('', '# Description', task.description.trim());
     }
 
-    // 3. Dependencies (всегда присутствует)
-    const depsValue = this.serializeDependencies(dependencies);
-    parts.push('', '# Dependencies', depsValue);
-
-    // 4. Кастомные поля в алфавитном порядке (status уже исключен)
-    const customFields = this.getCustomFields(rest);
+    // 3. Кастомные поля в алфавитном порядке
+    const customFields = this.getCustomFields(task);
     const sortedKeys = Object.keys(customFields).sort();
 
     for (const key of sortedKeys) {
@@ -109,21 +100,13 @@ class ParserServiceImpl implements ParserService {
     // Description опционален
     const description = sections.get('Description');
 
-    // Status больше не читаем из markdown - он только в индексе
-    // Используем дефолтное значение
-    const status = 'pending';
-
-    // Dependencies с дефолтом и валидацией
-    const dependencies = this.parseDependencies(sections.get('Dependencies'));
-
     // Кастомные поля
     const task: ParsedTask = {
       title,
       description,
-      status,
-      dependencies,
     };
 
+    // Status и dependencies хранятся только в индексе
     const standardKeys = new Set(['Title', 'Description', 'Status', 'Dependencies']);
     for (const [key, value] of sections.entries()) {
       if (!standardKeys.has(key)) {
@@ -134,41 +117,6 @@ class ParserServiceImpl implements ParserService {
     }
 
     return task;
-  }
-
-  private parseDependencies(value: string | undefined): string[] {
-    if (!value || value.trim() === '') {
-      return [];
-    }
-
-    const rawIds = value.split(',').map((id) => id.trim());
-    const result: string[] = [];
-
-    for (const id of rawIds) {
-      if (id === '') {
-        continue;
-      }
-
-      if (!DEPENDENCY_ID_REGEX.test(id)) {
-        throw new ParseError(`Invalid dependency ID: '${id}'`, 'Dependencies');
-      }
-
-      result.push(id);
-    }
-
-    return result;
-  }
-
-  private serializeDependencies(deps: string[]): string {
-    const validDeps = deps.filter((d) => {
-      const trimmed = d.trim();
-      if (trimmed === '') return false;
-      if (!DEPENDENCY_ID_REGEX.test(trimmed)) {
-        throw new ParseError(`Invalid dependency ID: '${trimmed}'`, 'Dependencies');
-      }
-      return true;
-    });
-    return validDeps.join(', ');
   }
 
   private getCustomFields(task: Record<string, unknown>): Record<string, string> {

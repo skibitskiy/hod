@@ -89,15 +89,24 @@ export async function updateCommand(
   const collectedFields = collectFields(optionsForCollection, config);
 
   // 8. Parse dependencies from --dependencies option (reuse parseDependencies from add.ts)
+  // Note: empty string clears all dependencies (unlike Status which cannot be empty)
   const dependenciesOption = options.dependencies;
   const newDependencies = parseDependencies(dependenciesOption);
 
   // 9. Build updated ParsedTask: start with current task, replace values for any fields that were provided in options
   const updatedTask: ParsedTask = { ...currentTask };
 
-  // Update dependencies only if --dependencies was provided
-  if (dependenciesOption !== undefined) {
-    updatedTask.dependencies = newDependencies;
+  // Extract status from collected fields if present (for index update)
+  // Do this BEFORE processing fields so we can validate empty Status
+  let statusForIndex: string | undefined;
+  if (collectedFields.Status !== undefined) {
+    // Validate Status is not empty
+    if (collectedFields.Status === '') {
+      throw new Error(`Поле 'Status' не может быть пустым`);
+    }
+    statusForIndex = collectedFields.Status;
+    // Status doesn't go to markdown anymore, so remove it from collected fields
+    delete collectedFields.Status;
   }
 
   // Process each field from options
@@ -134,11 +143,16 @@ export async function updateCommand(
   // 13. Write via storage.update() (atomic)
   await services.storage.update(id, markdown);
 
-  // 14. Update index via index.update() (rollback storage if this fails)
+  // 14. Get current status/dependencies from index for partial updates
+  const currentIndexData = await services.index.load();
+  const currentStatus = currentIndexData[id]?.status ?? 'pending'; // Default to 'pending' if not in index
+  const currentDependencies = currentIndexData[id]?.dependencies ?? [];
+
+  // 15. Update index via index.update() (rollback storage if this fails)
   try {
     await services.index.update(id, {
-      status: updatedTask.status,
-      dependencies: updatedTask.dependencies,
+      status: statusForIndex ?? currentStatus,
+      dependencies: dependenciesOption !== undefined ? newDependencies : currentDependencies,
     });
   } catch (error) {
     // Rollback storage by updating with old content

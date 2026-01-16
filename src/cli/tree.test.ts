@@ -2,17 +2,15 @@ import { describe, it, expect } from 'vitest';
 import type { ParsedTask } from '../parser/types.js';
 import { buildTree, formatTree, detectOrphans, treeToJson } from './tree.js';
 
-// Helper to create a parsed task
-const createTask = (_id: string, title: string, status: string = 'pending'): ParsedTask => ({
+// Helper to create a parsed task (without status/deps since they're in index now)
+const createTask = (_id: string, title: string): ParsedTask => ({
   title,
-  status,
-  dependencies: [],
 });
 
 // Helper to create a task with ID
-const createWithId = (id: string, title: string, status: string = 'pending') => ({
+const createWithId = (id: string, title: string) => ({
   id,
-  task: createTask(id, title, status),
+  task: createTask(id, title),
 });
 
 describe('tree module', () => {
@@ -90,13 +88,40 @@ describe('tree module', () => {
       expect(tree[0].children[0].task.id).toBe('1.1');
       expect(tree[1].task.id).toBe('2.1'); // orphaned at root level
     });
+
+    it('должен брать статус из индекса', () => {
+      const tasks = [createWithId('1', 'Task 1'), createWithId('2', 'Task 2')];
+
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'done', dependencies: [] },
+        '2': { status: 'in-progress', dependencies: [] },
+      };
+
+      const { tree } = buildTree(tasks, indexData);
+
+      expect(tree[0].task.status).toBe('done');
+      expect(tree[1].task.status).toBe('in-progress');
+    });
+
+    it('должен использовать дефолтный status pending если задачи нет в индексе', () => {
+      const tasks = [createWithId('1', 'Task 1')];
+
+      const { tree } = buildTree(tasks, {});
+
+      expect(tree[0].task.status).toBe('pending');
+    });
   });
 
   describe('formatTree()', () => {
     it('должен форматировать плоское дерево', () => {
-      const tasks = [createWithId('1', 'Task 1', 'pending'), createWithId('2', 'Task 2', 'done')];
+      const tasks = [createWithId('1', 'Task 1'), createWithId('2', 'Task 2')];
 
-      const { tree } = buildTree(tasks);
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'done', dependencies: [] },
+      };
+
+      const { tree } = buildTree(tasks, indexData);
       const result = formatTree(tree);
 
       expect(result).toContain('1');
@@ -109,12 +134,18 @@ describe('tree module', () => {
 
     it('должен форматировать дерево с подзадачами', () => {
       const tasks = [
-        createWithId('1', 'Main task', 'pending'),
-        createWithId('1.1', 'Subtask 1', 'pending'),
-        createWithId('1.2', 'Subtask 2', 'done'),
+        createWithId('1', 'Main task'),
+        createWithId('1.1', 'Subtask 1'),
+        createWithId('1.2', 'Subtask 2'),
       ];
 
-      const { tree } = buildTree(tasks);
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '1.1': { status: 'pending', dependencies: [] },
+        '1.2': { status: 'done', dependencies: [] },
+      };
+
+      const { tree } = buildTree(tasks, indexData);
       const result = formatTree(tree);
 
       expect(result).toContain('├──');
@@ -168,12 +199,14 @@ describe('tree module', () => {
 
   describe('treeToJson()', () => {
     it('должен конвертировать дерево в JSON', () => {
-      const tasks = [
-        createWithId('1', 'Main task', 'pending'),
-        createWithId('1.1', 'Subtask', 'done'),
-      ];
+      const tasks = [createWithId('1', 'Main task'), createWithId('1.1', 'Subtask')];
 
-      const { tree } = buildTree(tasks);
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '1.1': { status: 'done', dependencies: [] },
+      };
+
+      const { tree } = buildTree(tasks, indexData);
       const json = treeToJson(tree);
 
       expect(json).toHaveLength(1);
@@ -193,7 +226,7 @@ describe('tree module', () => {
     });
 
     it('должен включать только минимальный набор полей', () => {
-      const tasks = [createWithId('1', 'Task', 'pending')];
+      const tasks = [createWithId('1', 'Task')];
 
       const { tree } = buildTree(tasks);
       const json = treeToJson(tree);
@@ -203,7 +236,6 @@ describe('tree module', () => {
       expect(keys).toContain('title');
       expect(keys).toContain('status');
       expect(keys).toContain('children');
-      expect(keys).not.toContain('dependencies');
     });
 
     it('должен обрабатывать пустое дерево', () => {

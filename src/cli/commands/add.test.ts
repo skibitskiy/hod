@@ -277,24 +277,12 @@ describe('add command - helper functions (unit tests)', () => {
         Status: 'in-progress',
       };
 
-      const task = fieldsToParsedTask(fields, ['1', '2']);
+      const task = fieldsToParsedTask(fields);
 
-      expect(task).toEqual({
-        title: 'My Task',
-        description: 'Task description',
-        status: 'in-progress',
-        dependencies: ['1', '2'],
-      });
-    });
-
-    it('должен использовать дефолтный статус если не указан', () => {
-      const fields: Record<string, string> = {
-        Title: 'Task',
-      };
-
-      const task = fieldsToParsedTask(fields, []);
-
-      expect(task.status).toBe('pending');
+      expect(task.title).toBe('My Task');
+      expect(task.description).toBe('Task description');
+      // Status теперь кастомное поле, добавляется с lowercase ключом
+      expect(task.status).toBe('in-progress');
     });
 
     it('должен добавлять кастомные поля', () => {
@@ -304,10 +292,11 @@ describe('add command - helper functions (unit tests)', () => {
         Tags: 'urgent,important',
       };
 
-      const task = fieldsToParsedTask(fields, []);
+      const task = fieldsToParsedTask(fields);
 
-      expect(task.Priority).toBe('high');
-      expect(task.Tags).toBe('urgent,important');
+      // Custom fields теперь lowercase для совместимости с parser
+      expect(task.priority).toBe('high');
+      expect(task.tags).toBe('urgent,important');
     });
 
     it('должен выбрасывать ошибку если значение кастомного поля не строка', () => {
@@ -316,7 +305,7 @@ describe('add command - helper functions (unit tests)', () => {
         Count: 42,
       } as unknown as Record<string, string>;
 
-      expect(() => fieldsToParsedTask(fields, [])).toThrow('Невалидное значение для поля');
+      expect(() => fieldsToParsedTask(fields)).toThrow('Невалидное значение для поля');
     });
   });
 

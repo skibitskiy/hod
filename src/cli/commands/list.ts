@@ -43,7 +43,10 @@ export async function listCommand(options: ListCommandOptions, services: Service
     throw error;
   }
 
-  // 3. Parse each task with error handling
+  // 3. Load index data (contains status and dependencies)
+  const indexData = await services.index.load();
+
+  // 4. Parse each task with error handling
   const parsed: Array<{ id: string; task: ParsedTask }> = [];
   for (const task of tasks) {
     try {
@@ -56,24 +59,33 @@ export async function listCommand(options: ListCommandOptions, services: Service
     }
   }
 
-  // 4. Apply filters
-  const filtered = parsed.filter(({ task }) => {
+  // 5. Apply filters (status/deps come from index now)
+  const filtered = parsed.filter(({ id, task }) => {
+    const indexEntry = indexData[id];
+    if (!indexEntry) return false; // Skip tasks not in index
+
     for (const [key, value] of Object.entries(filters)) {
-      // Missing field -> filter fails
-      if (task[key] === undefined) return false;
-      // Case-sensitive strict equality
-      if (task[key] !== value) return false;
+      // Status always comes from index (single source of truth after task 14)
+      if (key === 'status') {
+        if (indexEntry.status !== value) return false;
+      } else if (task[key] !== undefined) {
+        // Check custom fields in parsed task
+        if (task[key] !== value) return false;
+      } else {
+        // Missing field -> filter fails
+        return false;
+      }
     }
     return true;
   });
 
-  // 5. Output
+  // 6. Output
   if (options.tree) {
-    outputTree(filtered, !!options.json);
+    outputTree(filtered, indexData, !!options.json);
   } else if (options.json) {
-    outputJson(filtered, fields);
+    outputJson(filtered, indexData, fields);
   } else {
-    outputTable(filtered, fields);
+    outputTable(filtered, indexData, fields);
   }
 }
 
@@ -82,6 +94,7 @@ export async function listCommand(options: ListCommandOptions, services: Service
  */
 function outputJson(
   filtered: Array<{ id: string; task: ParsedTask }>,
+  indexData: Record<string, { status: string; dependencies: string[] }>,
   fields: Config['fields'],
 ): void {
   if (filtered.length === 0) {
@@ -100,8 +113,12 @@ function outputJson(
       }
     }
 
-    // Dependencies from parser (sortIds doesn't mutate input)
-    obj.dependencies = sortIds(task.dependencies);
+    // Dependencies and status from index
+    const indexEntry = indexData[id];
+    if (indexEntry) {
+      obj.status = indexEntry.status;
+      obj.dependencies = sortIds(indexEntry.dependencies);
+    }
     return obj;
   });
 
@@ -113,6 +130,7 @@ function outputJson(
  */
 function outputTable(
   filtered: Array<{ id: string; task: ParsedTask }>,
+  indexData: Record<string, { status: string; dependencies: string[] }>,
   fields: Config['fields'],
 ): void {
   if (filtered.length === 0) {
@@ -130,7 +148,13 @@ function outputTable(
     const header = key; // Markdown key as header
     const maxVal = Math.max(
       header.length,
-      ...filtered.map((f) => (f.task[cliName] ?? '-').toString().length),
+      ...filtered.map((f) => {
+        // Special handling for status field (from index)
+        if (cliName === 'status') {
+          return (indexData[f.id]?.status ?? '-').length;
+        }
+        return (f.task[cliName] ?? '-').toString().length;
+      }),
     );
     colWidths[cliName] = maxVal;
   }
@@ -146,10 +170,18 @@ function outputTable(
   for (const { id, task } of filtered) {
     const values = fieldKeys.map((k) => {
       const cliName = fields[k].name;
-      const val = task[cliName];
+      let val: string | undefined;
+
+      // Special handling for status field (from index)
+      if (cliName === 'status') {
+        val = indexData[id]?.status;
+      } else {
+        val = task[cliName];
+      }
+
       // Handle special chars and empty values
       const isEmpty = val === undefined || val === '';
-      const clean = isEmpty ? '-' : val.toString().replace(/[\n\r\t]+/g, ' ');
+      const clean = isEmpty ? '-' : (val as string).replace(/[\n\r\t]+/g, ' ');
       return clean.padEnd(colWidths[cliName]);
     });
     console.log(`${id.padEnd(4)}${values.join('  ')}`);
@@ -159,9 +191,13 @@ function outputTable(
 /**
  * Outputs tasks as a tree structure.
  */
-function outputTree(filtered: Array<{ id: string; task: ParsedTask }>, asJson: boolean): void {
+function outputTree(
+  filtered: Array<{ id: string; task: ParsedTask }>,
+  indexData: Record<string, { status: string; dependencies: string[] }>,
+  asJson: boolean,
+): void {
   // Build tree with warnings
-  const { tree, warnings } = buildTree(filtered);
+  const { tree, warnings } = buildTree(filtered, indexData);
 
   // Output any warnings from tree building
   for (const warning of warnings) {
