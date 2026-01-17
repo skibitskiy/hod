@@ -552,4 +552,150 @@ describe('listCommand', () => {
       expect(output).toContain('Строка1\\nСтрока2');
     });
   });
+
+  describe('JSON парсинг контента', () => {
+    it('должен парсить JSON контент через parseJson', async () => {
+      const tasks = [
+        {
+          id: '1',
+          content: '{"title":"Задача 1","description":"Описание задачи"}',
+        },
+      ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+      };
+
+      const services = createMockServices(indexData, {
+        storage: {
+          ...createMockServices().storage,
+          list: vi.fn().mockResolvedValue(tasks),
+        } as unknown as StorageService,
+      });
+
+      const options: ListCommandOptions = {};
+      await listCommand(options, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('Задача 1');
+      expect(output).toContain('Описание задачи');
+    });
+
+    it('должен обрабатывать микс из JSON и Markdown контента', async () => {
+      const tasks = [
+        {
+          id: '1',
+          content: '# Title\nЗадача из Markdown\n# Priority\nhigh',
+        },
+        {
+          id: '2',
+          content: '{"title":"Задача из JSON","priority":"low"}',
+        },
+      ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+      };
+
+      const services = createMockServices(indexData, {
+        storage: {
+          ...createMockServices().storage,
+          list: vi.fn().mockResolvedValue(tasks),
+        } as unknown as StorageService,
+      });
+
+      const options: ListCommandOptions = {};
+      await listCommand(options, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('Задача из Markdown');
+      expect(output).toContain('Задача из JSON');
+    });
+
+    it('должен фильтровать JSON задачи по кастомным полям', async () => {
+      const tasks = [
+        {
+          id: '1',
+          content: '{"title":"Задача 1","priority":"high"}',
+        },
+        {
+          id: '2',
+          content: '{"title":"Задача 2","priority":"low"}',
+        },
+      ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+      };
+
+      const services = createMockServices(indexData, {
+        storage: {
+          ...createMockServices().storage,
+          list: vi.fn().mockResolvedValue(tasks),
+        } as unknown as StorageService,
+      });
+
+      const options: ListCommandOptions = { priority: 'high' };
+      await listCommand(options, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('Задача 1');
+      expect(output).not.toContain('Задача 2');
+    });
+
+    it('должен пропускать невалидный JSON с warning', async () => {
+      const tasks = [
+        { id: '1', content: '{"title":"Валидная задача"}' },
+        { id: '2', content: '{недействительный json}' },
+        { id: '3', content: '{"title":"Еще одна валидная"}' },
+      ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+        '3': { status: 'pending', dependencies: [] },
+      };
+
+      const services = createMockServices(indexData, {
+        storage: {
+          ...createMockServices().storage,
+          list: vi.fn().mockResolvedValue(tasks),
+        } as unknown as StorageService,
+      });
+
+      const options: ListCommandOptions = {};
+      await listCommand(options, services);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Предупреждение: задача 2');
+      expect(errors[0]).toContain('пропущена');
+
+      const output = logs.join('\n');
+      expect(output).toContain('Валидная задача');
+      expect(output).toContain('Еще одна валидная');
+    });
+
+    it('JSON с multiline значением в поле', async () => {
+      const tasks = [
+        {
+          id: '1',
+          content: '{"title":"Задача 1","description":"Строка1\\nСтрока2"}',
+        },
+      ];
+      const indexData: Record<string, { status: string; dependencies: string[] }> = {
+        '1': { status: 'pending', dependencies: [] },
+      };
+
+      const services = createMockServices(indexData, {
+        storage: {
+          ...createMockServices().storage,
+          list: vi.fn().mockResolvedValue(tasks),
+        } as unknown as StorageService,
+      });
+
+      const options: ListCommandOptions = { json: true };
+      await listCommand(options, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('Строка1\\nСтрока2');
+    });
+  });
 });
