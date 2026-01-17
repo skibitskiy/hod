@@ -237,6 +237,57 @@ class ParserServiceImpl implements ParserService {
 
     return custom;
   }
+
+  /**
+   * Сериализует ParsedTask в JSON формат для хранения в файле.
+   * Status и dependencies хранятся только в индексе, не в JSON файле.
+   *
+   * @param task - ParsedTask для сериализации
+   * @returns JSON строка
+   * @throws {ParseError} если title отсутствует или имеет неверный тип
+   */
+  serializeJson(task: ParsedTask): string {
+    // Валидация обязательных полей
+    if (task.title === undefined || task.title === null) {
+      throw new ParseError('Missing required field: title');
+    }
+    if (typeof task.title !== 'string') {
+      throw new ParseError(`Invalid field 'title': expected string, got ${typeof task.title}`);
+    }
+
+    // Собираем данные для JSON
+    const jsonData: Record<string, string | undefined> = {
+      title: task.title,
+    };
+
+    // Description (опционален, пропускаем пустые строки)
+    if (task.description !== undefined && task.description.trim() !== '') {
+      if (typeof task.description !== 'string') {
+        throw new ParseError(
+          `Invalid field 'description': expected string, got ${typeof task.description}`,
+        );
+      }
+      jsonData.description = task.description;
+    }
+
+    // Кастомные поля (все остальные строковые поля)
+    const standardKeys = new Set(['title', 'description']);
+    for (const [key, value] of Object.entries(task)) {
+      if (!standardKeys.has(key) && value !== undefined && value !== null) {
+        if (typeof value === 'string') {
+          // Пропускаем пустые строки
+          if (value.trim() !== '') {
+            jsonData[key] = value;
+          }
+        } else {
+          const type = Array.isArray(value) ? 'array' : typeof value;
+          throw new ParseError(`Invalid custom field '${key}': expected string, got ${type}`);
+        }
+      }
+    }
+
+    return JSON.stringify(jsonData, null, 2) + '\n';
+  }
 }
 
 export const ParserService: ParserService = new ParserServiceImpl();

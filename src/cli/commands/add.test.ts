@@ -281,8 +281,8 @@ describe('add command - helper functions (unit tests)', () => {
 
       expect(task.title).toBe('My Task');
       expect(task.description).toBe('Task description');
-      // Status теперь кастомное поле, добавляется с lowercase ключом
-      expect(task.status).toBe('in-progress');
+      // Status теперь только в индексе, не в JSON файле
+      expect(task.status).toBeUndefined();
     });
 
     it('должен добавлять кастомные поля', () => {
@@ -557,11 +557,12 @@ describe('add command (integration with mocked services)', () => {
     await addCommand(options, services);
 
     const callArgs = (services.storage.create as ReturnType<typeof vi.fn>).mock.calls[0];
-    const markdown = callArgs[1] as string;
+    const jsonContent = callArgs[1] as string;
+    const parsed = JSON.parse(jsonContent);
 
-    // Status больше не пишется в markdown (только в index)
-    expect(markdown).toContain('# Title');
-    expect(markdown).toContain('Task');
+    // Status пишется только в index, не в JSON
+    expect(parsed.title).toBe('Task');
+    expect(parsed.status).toBeUndefined();
   });
 
   it('должен выбрасывать ошибку для неизвестного поля', async () => {
@@ -610,10 +611,11 @@ describe('add command (integration with mocked services)', () => {
     await addCommand(options, services);
 
     const callArgs = (services.storage.create as ReturnType<typeof vi.fn>).mock.calls[0];
-    const markdown = callArgs[1] as string;
+    const jsonContent = callArgs[1] as string;
+    const parsed = JSON.parse(jsonContent);
 
-    expect(markdown).toContain('# Title\nTask');
-    expect(markdown).toContain('# Description\nDescription');
+    expect(parsed.title).toBe('Task');
+    expect(parsed.description).toBe('Description');
   });
 
   it('должен логировать предупреждение при ошибке rollback', async () => {

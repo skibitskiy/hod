@@ -65,10 +65,11 @@ describe('add command (integration tests with memfs)', () => {
 
       expect(id).toBe('1');
 
-      // Check file was created
+      // Check file was created (JSON format)
       const content = await services.storage.read(id);
-      expect(content).toContain('# Title\nTest task');
-      expect(content).toContain('# Description\nTask description');
+      const parsed = JSON.parse(content);
+      expect(parsed.title).toBe('Test task');
+      expect(parsed.description).toBe('Task description');
 
       // Check index was updated
       const index = await services.index.load();
@@ -95,11 +96,11 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const content = await services.storage.read('1');
-      const parsed = ParserService.parse(content);
+      const parsed = JSON.parse(content);
       const indexData = await services.index.load();
 
       expect(parsed.title).toBe('Task');
-      // Status и dependencies теперь в index, не в markdown
+      // Status и dependencies теперь в index, не в JSON
       expect(indexData['1']?.status).toBe('pending');
       expect(indexData['1']?.dependencies).toEqual([]);
     });
@@ -136,7 +137,7 @@ describe('add command (integration tests with memfs)', () => {
       // Create subtask manually (simulating subtask creation)
       await services.storage.create(
         '1.1',
-        ParserService.serialize({
+        ParserService.serializeJson({
           title: 'Subtask',
         }),
       );
@@ -152,7 +153,7 @@ describe('add command (integration tests with memfs)', () => {
       for (const taskId of ['1', '3', '5']) {
         await services.storage.create(
           taskId,
-          ParserService.serialize({
+          ParserService.serializeJson({
             title: `Task ${taskId}`,
           }),
         );
@@ -182,10 +183,11 @@ describe('add command (integration tests with memfs)', () => {
       const index = await services.index.load();
       expect(index[id]).toEqual({ status: 'pending', dependencies: ['1', '2'] });
 
-      // Dependencies больше нет в markdown (только в index)
+      // Dependencies больше нет в JSON (только в index)
       const content = await services.storage.read(id);
-      expect(content).toContain('# Title\nTask with deps');
-      expect(content).not.toContain('# Dependencies');
+      const parsed = JSON.parse(content);
+      expect(parsed.title).toBe('Task with deps');
+      expect(parsed.dependencies).toBeUndefined();
     });
 
     it('должен trim пробелы в зависимостях', async () => {
@@ -267,15 +269,15 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const content = await services.storage.read('1');
-      const parsed = ParserService.parse(content);
+      const parsed = JSON.parse(content);
 
       expect(parsed.title).toBe('Task title');
       expect(parsed.description).toBe('Description text');
     });
   });
 
-  describe('формат Markdown', () => {
-    it('должен сериализовать задачу в корректный Markdown', async () => {
+  describe('формат JSON', () => {
+    it('должен сериализовать задачу в корректный JSON', async () => {
       const options: AddCommandOptions = {
         title: 'Test Task',
         description: 'Multi-line\ndescription',
@@ -284,14 +286,13 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const content = await services.storage.read('1');
-      const lines = content.split('\n');
+      const parsed = JSON.parse(content);
 
-      expect(lines[0]).toBe('# Title');
-      expect(lines[1]).toBe('Test Task');
-      expect(lines).toContain('# Description');
-      // Status и Dependencies больше не пишутся в markdown (только в index)
-      expect(lines).not.toContain('# Status');
-      expect(lines).not.toContain('# Dependencies');
+      expect(parsed.title).toBe('Test Task');
+      expect(parsed.description).toBe('Multi-line\ndescription');
+      // Status и Dependencies больше не пишутся в JSON (только в index)
+      expect(parsed.status).toBeUndefined();
+      expect(parsed.dependencies).toBeUndefined();
     });
 
     it('должен включать все стандартные секции', async () => {
@@ -302,11 +303,11 @@ describe('add command (integration tests with memfs)', () => {
       await addCommand(options, services);
 
       const content = await services.storage.read('1');
-      const parsed = ParserService.parse(content);
+      const parsed = JSON.parse(content);
       const indexData = await services.index.load();
 
       expect(parsed.title).toBeDefined();
-      // Status и dependencies теперь только в index, не в markdown
+      // Status и dependencies теперь только в index, не в JSON
       expect(indexData['1']?.status).toBeDefined();
       expect(indexData['1']?.dependencies).toBeDefined();
     });
@@ -378,7 +379,7 @@ describe('add command (integration tests with memfs)', () => {
       // Create task 100
       await services.storage.create(
         '100',
-        ParserService.serialize({
+        ParserService.serializeJson({
           title: 'Big ID task',
         }),
       );

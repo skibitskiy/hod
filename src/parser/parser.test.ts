@@ -371,4 +371,148 @@ desc`);
       expect(error.section).toBe('Title');
     });
   });
+
+  describe('serializeJson()', () => {
+    it('должен сериализовать задачу в JSON', () => {
+      const task = {
+        title: 'Task',
+        description: 'Desc',
+      };
+
+      const result = ParserService.serializeJson(task);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.title).toBe('Task');
+      expect(parsed.description).toBe('Desc');
+      // Status и dependencies не должны быть в JSON
+      expect(parsed.status).toBeUndefined();
+      expect(parsed.dependencies).toBeUndefined();
+    });
+
+    it('должен пропускать пустые поля', () => {
+      const task = {
+        title: 'Task',
+        description: '',
+      };
+
+      const result = ParserService.serializeJson(task);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.title).toBe('Task');
+      expect(parsed.description).toBeUndefined();
+    });
+
+    it('должен пропускать undefined поля', () => {
+      const task = {
+        title: 'Task',
+        description: undefined,
+        priority: undefined,
+      };
+
+      const result = ParserService.serializeJson(task);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.title).toBe('Task');
+      expect(parsed.description).toBeUndefined();
+      expect(parsed.priority).toBeUndefined();
+    });
+
+    it('должен сериализовать кастомные поля', () => {
+      const task = {
+        title: 'Task',
+        priority: 'high',
+        assignee: 'user',
+      };
+
+      const result = ParserService.serializeJson(task);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.title).toBe('Task');
+      expect(parsed.priority).toBe('high');
+      expect(parsed.assignee).toBe('user');
+    });
+
+    it('должен выбросить ParseError при отсутствии title', () => {
+      const task = {
+        description: 'Desc',
+      } as unknown as { title: string };
+
+      expect(() => ParserService.serializeJson(task)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при неверном типе title', () => {
+      const task = {
+        title: 123 as unknown as string,
+      };
+
+      expect(() => ParserService.serializeJson(task)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при неверном типе кастомного поля', () => {
+      const task = {
+        title: 'Task',
+        priority: ['high'] as unknown as string,
+      };
+
+      expect(() => ParserService.serializeJson(task)).toThrow(ParseError);
+    });
+
+    it('должен форматировать JSON с отступами', () => {
+      const task = {
+        title: 'Task',
+        description: 'Desc',
+      };
+
+      const result = ParserService.serializeJson(task);
+
+      expect(result).toBe('{\n  "title": "Task",\n  "description": "Desc"\n}\n');
+    });
+
+    it('должен корректно экранировать специальные символы', () => {
+      const task = {
+        title: 'Task with "quotes"',
+        description: 'Line 1\nLine 2\tTabbed\\Backslash',
+      };
+
+      const result = ParserService.serializeJson(task);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.title).toBe('Task with "quotes"');
+      expect(parsed.description).toBe('Line 1\nLine 2\tTabbed\\Backslash');
+    });
+
+    it('должен поддерживать Unicode символы', () => {
+      const task = {
+        title: 'Задача с emoji 🎯 и 中文',
+        description: 'Description with Ñ, é, and 日本語',
+      };
+
+      const result = ParserService.serializeJson(task);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.title).toBe('Задача с emoji 🎯 и 中文');
+      expect(parsed.description).toBe('Description with Ñ, é, and 日本語');
+    });
+
+    it('должен создавать валидный JSON для парсинга обратно', () => {
+      const task = {
+        title: 'Complex Task "with quotes"',
+        description: 'Multi\nline\twith\\special',
+        priority: 'high',
+      };
+
+      const result = ParserService.serializeJson(task);
+
+      // Проверяем что результат является валидным JSON
+      expect(() => JSON.parse(result)).not.toThrow();
+
+      // Проверяем что данные сохраняются при round-trip
+      const parsed = JSON.parse(result);
+      expect(parsed).toEqual({
+        title: 'Complex Task "with quotes"',
+        description: 'Multi\nline\twith\\special',
+        priority: 'high',
+      });
+    });
+  });
 });
