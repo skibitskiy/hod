@@ -1,70 +1,70 @@
 {
   "1": {
-    "status": "done",
-    "dependencies": []
+    "dependencies": [],
+    "status": "done"
   },
   "2": {
-    "status": "pending",
     "dependencies": [
       "3"
-    ]
+    ],
+    "status": "pending"
   },
   "3": {
-    "status": "done",
-    "dependencies": []
+    "dependencies": [],
+    "status": "done"
   },
   "4": {
-    "status": "pending",
-    "dependencies": []
+    "dependencies": [],
+    "status": "pending"
   },
   "4.1": {
-    "status": "done",
-    "dependencies": []
+    "dependencies": [],
+    "status": "done"
   },
   "4.2": {
-    "status": "pending",
     "dependencies": [
       "4.1"
-    ]
+    ],
+    "status": "pending"
   },
   "4.3": {
-    "status": "pending",
     "dependencies": [
       "4.2"
-    ]
+    ],
+    "status": "pending"
   },
   "4.4": {
-    "status": "pending",
     "dependencies": [
       "4.2"
-    ]
+    ],
+    "status": "done"
   },
   "4.5": {
-    "status": "pending",
     "dependencies": [
       "4.2"
-    ]
+    ],
+    "status": "pending"
   },
   "4.6": {
-    "status": "pending",
     "dependencies": [
       "4.2"
-    ]
+    ],
+    "status": "pending"
   },
   "4.7": {
-    "status": "pending",
     "dependencies": [
       "4.2"
-    ]
+    ],
+    "status": "pending"
   },
   "4.8": {
-    "status": "pending",
     "dependencies": [
       "4.3",
       "4.4",
       "4.5",
       "4.6",
       "4.7"
-    ]
+    ],
+    "status": "pending"
   }
 }
