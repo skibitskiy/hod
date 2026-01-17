@@ -1,6 +1,6 @@
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
-import { parse } from 'yaml';
+import { parse, stringify } from 'yaml';
 import { z } from 'zod';
 import type { Config, ConfigService, FieldConfig } from './types.js';
 import { ConfigLoadError, ConfigValidationError } from './errors.js';
@@ -61,6 +61,44 @@ const DEFAULT_CONFIG: Config = {
 };
 
 export class ConfigServiceImpl implements ConfigService {
+  async createDefault(
+    tasksDir: string = './tasks',
+  ): Promise<{ created: boolean; message: string }> {
+    const configPath = resolve(process.cwd(), 'hod.config.yml');
+
+    // Check if config already exists
+    try {
+      await access(configPath);
+      return { created: false, message: 'Конфигурация уже существует (hod.config.yml)' };
+    } catch {
+      // File doesn't exist, continue
+    }
+
+    // Create tasks directory
+    try {
+      await mkdir(tasksDir, { recursive: true });
+    } catch (err) {
+      const error = err as NodeJS.ErrnoException;
+      if (error.code !== 'EEXIST') {
+        throw error;
+      }
+    }
+
+    // Create default config file
+    const defaultConfig = {
+      tasksDir,
+      fields: {
+        Title: { name: 'title', required: true },
+        Description: { name: 'description' },
+        Status: { name: 'status', default: 'pending' },
+      },
+    };
+
+    await writeFile(configPath, stringify(defaultConfig), 'utf-8');
+
+    return { created: true, message: 'HOD проект инициализирован' };
+  }
+
   async load(path?: string): Promise<Config> {
     const configPath = path ? resolve(path) : resolve(process.cwd(), 'hod.config.yml');
 

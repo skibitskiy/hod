@@ -5,6 +5,7 @@ import { listCommand, type ListCommandOptions } from './commands/list.js';
 import { updateCommand, type UpdateCommandOptions } from './commands/update.js';
 import { deleteCommand, type DeleteCommandOptions } from './commands/delete.js';
 import { moveCommand, type MoveCommandOptions } from './commands/move.js';
+import { initCommand, type InitCommandOptions } from './commands/init.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 
@@ -165,6 +166,31 @@ async function registerMoveCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'init' command.
+ */
+async function registerInitCommand(): Promise<void> {
+  const services = await createServices();
+
+  program
+    .command('init')
+    .description('Инициализировать новый HOD проект')
+    .option('--dir <path>', 'Директория для задач (по умолчанию: ./tasks)')
+    .action(async (options: InitCommandOptions) => {
+      try {
+        const message = await initCommand(options, services);
+        console.log(message);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Main CLI entry point.
  */
 export async function main(): Promise<void> {
@@ -184,6 +210,9 @@ export async function main(): Promise<void> {
 
   // Register move command
   await registerMoveCommand();
+
+  // Register init command
+  await registerInitCommand();
 
   await program.parseAsync(process.argv);
 }

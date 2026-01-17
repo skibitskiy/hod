@@ -12,4 +12,5 @@ export interface Config {
 export interface ConfigService {
   load(path?: string): Promise<Config>;
   validate(config: Config): void;
+  createDefault(tasksDir?: string): Promise<{ created: boolean; message: string }>;
 }

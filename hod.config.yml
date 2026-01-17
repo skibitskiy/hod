@@ -5,3 +5,6 @@ fields:
     required: true
   Description:
     name: description
+  Status:
+    name: status
+    default: pending
