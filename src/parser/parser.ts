@@ -144,6 +144,7 @@ class ParserServiceImpl implements ParserService {
       }
     }
 
+    // Pretty-print с 2 пробелами
     return JSON.stringify(obj, null, 2);
   }
 

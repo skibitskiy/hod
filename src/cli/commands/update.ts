@@ -75,8 +75,8 @@ export async function updateCommand(
   // 5. Read current content via storage.read()
   const currentContent = await services.storage.read(id);
 
-  // 6. Parse via parser.parse() to get current ParsedTask
-  const currentTask = services.parser.parse(currentContent);
+  // 6. Parse via parser.parseJson() to get current ParsedTask
+  const currentTask = services.parser.parseJson(currentContent);
 
   // 7. Collect new field values from options (reuse collectFields from add.ts)
   // Exclude 'id' from collection (it's a positional argument, not a field)
@@ -134,14 +134,14 @@ export async function updateCommand(
   // 10. Validate required fields after applying updates
   validateRequiredFields(updatedTask, config);
 
-  // 11. Serialize via parser.serialize()
-  const markdown = services.parser.serialize(updatedTask);
+  // 11. Serialize via parser.serializeToJson()
+  const jsonData = services.parser.serializeToJson(updatedTask);
 
   // 12. Store original content for potential rollback
   const originalContent = currentContent;
 
   // 13. Write via storage.update() (atomic)
-  await services.storage.update(id, markdown);
+  await services.storage.update(id, jsonData);
 
   // 14. Get current status/dependencies from index for partial updates
   const currentIndexData = await services.index.load();

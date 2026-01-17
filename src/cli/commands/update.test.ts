@@ -26,7 +26,12 @@ const createMockServices = (overrides?: Partial<Services>): Services => ({
   } as unknown as ConfigService,
   storage: {
     create: vi.fn().mockResolvedValue(undefined),
-    read: vi.fn().mockResolvedValue('# Title\nTest\n# Dependencies\n'),
+    read: vi.fn().mockResolvedValue(
+      JSON.stringify({
+        title: 'Old Title',
+        description: 'Old description',
+      }),
+    ),
     update: vi.fn().mockResolvedValue(undefined),
     delete: vi.fn().mockResolvedValue(undefined),
     exists: vi.fn().mockResolvedValue(true),
@@ -42,13 +47,10 @@ const createMockServices = (overrides?: Partial<Services>): Services => ({
   ...overrides,
 });
 
-const existingTaskMarkdown = `# Title
-Old Title
-# Description
-Old description
-# Dependencies
-1, 2
-`;
+const existingTaskJson = JSON.stringify({
+  title: 'Old Title',
+  description: 'Old description',
+});
 
 describe('updateCommand', () => {
   let warns: string[] = [];
@@ -67,7 +69,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
         index: {
           ...createMockServices().index,
@@ -96,7 +98,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -117,7 +119,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -139,7 +141,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -161,7 +163,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -183,7 +185,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -204,7 +206,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -217,17 +219,18 @@ describe('updateCommand', () => {
 
       expect(result).toBe('1');
 
-      // Verify that serialized markdown doesn't contain Description section
+      // Verify that serialized JSON doesn't contain description field
       const updateCall = (services.storage.update as ReturnType<typeof vi.fn>).mock.calls[0];
-      const updatedMarkdown = updateCall[1] as string;
-      expect(updatedMarkdown).not.toContain('# Description');
+      const updatedJson = updateCall[1] as string;
+      const parsed = JSON.parse(updatedJson);
+      expect(parsed).not.toHaveProperty('description');
     });
 
     it('должен удалять кастомное поле при пустой строке', async () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue('# Title\nTest\n# Priority\nhigh\n# Dependencies\n'),
+          read: vi.fn().mockResolvedValue(JSON.stringify({ title: 'Test', priority: 'high' })),
         } as unknown as StorageService,
       });
 
@@ -241,8 +244,9 @@ describe('updateCommand', () => {
       expect(result).toBe('1');
 
       const updateCall = (services.storage.update as ReturnType<typeof vi.fn>).mock.calls[0];
-      const updatedMarkdown = updateCall[1] as string;
-      expect(updatedMarkdown).not.toContain('# Priority');
+      const updatedJson = updateCall[1] as string;
+      const parsed = JSON.parse(updatedJson);
+      expect(parsed).not.toHaveProperty('priority');
     });
   });
 
@@ -251,7 +255,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -271,7 +275,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -291,7 +295,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -345,7 +349,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
       });
 
@@ -397,7 +401,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
         } as unknown as StorageService,
         index: {
           ...createMockServices().index,
@@ -432,7 +436,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
           update: storageUpdate,
         } as unknown as StorageService,
         index: {
@@ -461,7 +465,7 @@ describe('updateCommand', () => {
       const services = createMockServices({
         storage: {
           ...createMockServices().storage,
-          read: vi.fn().mockResolvedValue(existingTaskMarkdown),
+          read: vi.fn().mockResolvedValue(existingTaskJson),
           update: storageUpdate,
         } as unknown as StorageService,
         index: {
