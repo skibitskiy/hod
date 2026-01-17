@@ -173,6 +173,182 @@ Desc
     });
   });
 
+  describe('parseJson()', () => {
+    it('должен распарсить JSON с title и description', () => {
+      const json = '{"title":"Task","description":"Desc"}';
+
+      const result = ParserService.parseJson(json);
+
+      expect(result.title).toBe('Task');
+      expect(result.description).toBe('Desc');
+    });
+
+    it('должен распарсить JSON с кастомными полями', () => {
+      const json = '{"title":"Task","priority":"high","assignee":"user"}';
+
+      const result = ParserService.parseJson(json);
+
+      expect(result.title).toBe('Task');
+      expect(result.priority).toBe('high');
+      expect(result.assignee).toBe('user');
+    });
+
+    it('должен выбросить ParseError при пустом вводе', () => {
+      expect(() => ParserService.parseJson('')).toThrow(ParseError);
+      expect(() => ParserService.parseJson('   ')).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при невалидном JSON', () => {
+      expect(() => ParserService.parseJson('{invalid}')).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при отсутствии title', () => {
+      const json = '{"description":"Desc"}';
+      expect(() => ParserService.parseJson(json)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при неверном типе title', () => {
+      const json = '{"title":123}';
+      expect(() => ParserService.parseJson(json)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при неверном типе кастомного поля', () => {
+      const json = '{"title":"Task","priority":123}';
+      expect(() => ParserService.parseJson(json)).toThrow(ParseError);
+    });
+
+    it('должен обрабатывать null значения опциональных полей', () => {
+      const json = '{"title":"Task","description":null}';
+
+      const result = ParserService.parseJson(json);
+
+      expect(result.title).toBe('Task');
+      expect(result.description).toBeUndefined();
+    });
+
+    it('должен trim значения', () => {
+      const json = '{"title":"  Task  ","description":"  Desc  "}';
+
+      const result = ParserService.parseJson(json);
+
+      expect(result.title).toBe('Task');
+      expect(result.description).toBe('Desc');
+    });
+
+    it('должен игнорировать status и dependencies', () => {
+      const json = '{"title":"Task","status":"completed","dependencies":["1","2"]}';
+
+      const result = ParserService.parseJson(json);
+
+      expect(result.title).toBe('Task');
+      expect(result.status).toBeUndefined();
+      expect(result.dependencies).toBeUndefined();
+    });
+
+    it('должен выбросить ParseError для массива', () => {
+      const json = '[]';
+      expect(() => ParserService.parseJson(json)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError для null', () => {
+      const json = 'null';
+      expect(() => ParserService.parseJson(json)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError для примитива', () => {
+      const json = '"string"';
+      expect(() => ParserService.parseJson(json)).toThrow(ParseError);
+    });
+  });
+
+  describe('serializeToJson()', () => {
+    it('должен сериализовать задачу в JSON', () => {
+      const task = {
+        title: 'Task',
+        description: 'Desc',
+      };
+
+      const result = ParserService.serializeToJson(task);
+
+      // Pretty-printed с 2 пробелами
+      expect(result).toBe('{\n  "title": "Task",\n  "description": "Desc"\n}');
+    });
+
+    it('должен быть pretty-printed с 2 пробелами', () => {
+      const task = {
+        title: 'Task',
+        description: 'Desc',
+      };
+
+      const result = ParserService.serializeToJson(task);
+
+      expect(result).toBe('{\n  "title": "Task",\n  "description": "Desc"\n}');
+    });
+
+    it('должен пропускать пустые опциональные поля', () => {
+      const task = {
+        title: 'Task',
+        description: '',
+      };
+
+      const result = ParserService.serializeToJson(task);
+
+      expect(result).toBe('{\n  "title": "Task"\n}');
+      expect(result).not.toContain('description');
+    });
+
+    it('должен пропускать undefined поля', () => {
+      const task = {
+        title: 'Task',
+        description: undefined,
+        priority: undefined,
+      };
+
+      const result = ParserService.serializeToJson(task);
+
+      expect(result).not.toContain('description');
+      expect(result).not.toContain('priority');
+    });
+
+    it('должен выбросить ParseError при отсутствии title', () => {
+      const task = { title: undefined as unknown as string }; // Type assertion to test missing title
+
+      expect(() => ParserService.serializeToJson(task)).toThrow(ParseError);
+    });
+
+    it('должен выбросить ParseError при неверном типе кастомного поля', () => {
+      const task = {
+        title: 'Task',
+        priority: 123 as unknown as string, // Type assertion to bypass TS, runtime will fail
+      };
+
+      expect(() => ParserService.serializeToJson(task)).toThrow(ParseError);
+    });
+
+    it('round-trip: serializeToJson -> parseJson', () => {
+      const original = {
+        title: 'Task',
+        description: 'Desc',
+        priority: 'high',
+      };
+
+      const json = ParserService.serializeToJson(original);
+      const restored = ParserService.parseJson(json);
+
+      expect(restored.title).toBe(original.title);
+      expect(restored.description).toBe(original.description);
+      expect(restored.priority).toBe(original.priority);
+    });
+
+    it('round-trip: parseJson -> serializeToJson', () => {
+      const json = '{\n  "title": "Task",\n  "description": "Desc",\n  "priority": "high"\n}';
+      const parsed = ParserService.parseJson(json);
+      const restoredJson = ParserService.serializeToJson(parsed);
+
+      expect(restoredJson).toBe(json);
+    });
+  });
+
   describe('ParseError', () => {
     it('должен содержать section в ошибке', () => {
       try {

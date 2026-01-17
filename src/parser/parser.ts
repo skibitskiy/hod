@@ -4,6 +4,8 @@ import { ParseError } from './types.js';
 export interface ParserService {
   parse(markdown: string): ParsedTask;
   serialize(task: ParsedTask): string;
+  parseJson(jsonString: string): ParsedTask;
+  serializeToJson(task: ParsedTask): string;
 }
 
 class ParserServiceImpl implements ParserService {
@@ -47,6 +49,102 @@ class ParserServiceImpl implements ParserService {
     }
 
     return parts.join('\n') + '\n';
+  }
+
+  parseJson(jsonString: string): ParsedTask {
+    const trimmed = jsonString.trim();
+
+    if (trimmed === '') {
+      throw new ParseError('Empty input');
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        throw new ParseError(`Невалидный JSON: ${e.message}`);
+      }
+      throw new ParseError(`Ошибка парсинга JSON: ${String(e)}`);
+    }
+
+    // Validate that parsed is an object
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new ParseError('JSON должен быть объектом');
+    }
+
+    const obj = parsed as Record<string, unknown>;
+
+    // Title is required and must be a string
+    const title = obj.title;
+    if (typeof title !== 'string') {
+      throw new ParseError('Отсутствует обязательное поле title или имеет неверный тип');
+    }
+
+    const task: ParsedTask = {
+      title: title.trim(),
+    };
+
+    // Process optional fields
+    if (obj.description !== undefined && obj.description !== null) {
+      if (typeof obj.description !== 'string') {
+        throw new ParseError('Поле description должно быть строкой');
+      }
+      task.description = obj.description.trim();
+    }
+
+    // Process custom fields (must be strings)
+    const standardKeys = new Set(['title', 'description', 'status', 'dependencies']);
+    for (const [key, value] of Object.entries(obj)) {
+      if (standardKeys.has(key)) {
+        continue; // Skip standard fields (except title which is already handled)
+      }
+
+      if (value !== undefined && value !== null) {
+        if (typeof value !== 'string') {
+          throw new ParseError(`Поле '${key}' должно быть строкой, получено ${typeof value}`);
+        }
+        // Store as lowercase (consistent with ParsedTask format)
+        task[key.toLowerCase()] = value.trim();
+      }
+    }
+
+    return task;
+  }
+
+  serializeToJson(task: ParsedTask): string {
+    // Status и dependencies хранятся только в индексе, не в JSON
+    const obj: Record<string, string> = {};
+
+    // Title is required
+    if (task.title === undefined || task.title === null) {
+      throw new ParseError('Missing required field: title');
+    }
+    obj.title = task.title.trim();
+
+    // Description (если не пустой)
+    if (task.description && task.description.trim() !== '') {
+      obj.description = task.description.trim();
+    }
+
+    // Кастомные поля (только string значения)
+    const standardKeys = new Set(['title', 'description']);
+    for (const [key, value] of Object.entries(task)) {
+      if (standardKeys.has(key)) {
+        continue;
+      }
+      if (value !== undefined && value !== null && typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed !== '') {
+          obj[key] = trimmed;
+        }
+      } else if (value !== undefined && value !== null) {
+        const type = Array.isArray(value) ? 'array' : typeof value;
+        throw new ParseError(`Invalid custom field '${key}': expected string, got ${type}`);
+      }
+    }
+
+    return JSON.stringify(obj, null, 2);
   }
 
   private parseSections(markdown: string): Map<string, string> {
