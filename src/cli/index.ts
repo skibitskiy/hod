@@ -7,6 +7,7 @@ import { deleteCommand, type DeleteCommandOptions } from './commands/delete.js';
 import { moveCommand, type MoveCommandOptions } from './commands/move.js';
 import { initCommand, type InitCommandOptions } from './commands/init.js';
 import { getCommand, type GetCommandOptions } from './commands/get.js';
+import { migrateCommand, type MigrateCommandOptions } from './commands/migrate.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 
@@ -220,6 +221,31 @@ async function registerGetCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'migrate' command.
+ */
+async function registerMigrateCommand(): Promise<void> {
+  const services = await createServices();
+
+  program
+    .command('migrate <file>')
+    .description('Конвертировать .md файл в .json формат')
+    .option('-o, --output <path>', 'Путь для сохранения JSON файла')
+    .option('-s, --stdout', 'Вывести JSON в stdout вместо записи в файл')
+    .action(async (file: string, options: MigrateCommandOptions) => {
+      try {
+        await migrateCommand(file, options, services);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Main CLI entry point.
  */
 export async function main(): Promise<void> {
@@ -245,6 +271,9 @@ export async function main(): Promise<void> {
 
   // Register get command
   await registerGetCommand();
+
+  // Register migrate command
+  await registerMigrateCommand();
 
   await program.parseAsync(process.argv);
 }
