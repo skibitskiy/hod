@@ -230,8 +230,8 @@ function fieldsToParsedTask(fields: Record<string, unknown>): ParsedTask {
     task.description = description;
   }
 
-  // Add custom fields with type validation (status is now a custom field in config)
-  const standardKeys = new Set(['Title', 'Description']);
+  // Add custom fields with type validation (excluding Status - it goes to index only)
+  const standardKeys = new Set(['Title', 'Description', 'Status']);
   for (const [key, value] of Object.entries(fields)) {
     if (!standardKeys.has(key)) {
       // Validate that custom fields are strings
@@ -334,13 +334,13 @@ export async function addCommand(options: AddCommandOptions, services: Services)
   // 11. Build ParsedTask (without status and dependencies - they go to index)
   const parsedTask = fieldsToParsedTask(withDefaults);
 
-  // 11. Serialize to Markdown
-  const markdown = services.parser.serialize(parsedTask);
+  // 12. Serialize to JSON
+  const jsonContent = services.parser.serializeJson(parsedTask);
 
-  // 12. Create in Storage
-  await services.storage.create(id, markdown);
+  // 13. Create in Storage
+  await services.storage.create(id, jsonContent);
 
-  // 13. Update Index (with rollback)
+  // 14. Update Index (with rollback)
   try {
     await services.index.update(id, { status, dependencies });
   } catch (error) {

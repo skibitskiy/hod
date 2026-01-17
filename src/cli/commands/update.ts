@@ -15,6 +15,61 @@ export interface UpdateCommandOptions extends AddCommandOptions {
 }
 
 /**
+ * Parses task content that may be either JSON or markdown format.
+ * Tries JSON first, falls back to markdown parser.
+ *
+ * @param content - The file content to parse
+ * @param parser - ParserService for markdown parsing
+ * @returns ParsedTask
+ * @throws {Error} if content is invalid JSON or markdown
+ */
+function parseTaskContent(
+  content: string,
+  parser: typeof import('../../parser/parser.js').ParserService,
+): ParsedTask {
+  const trimmed = content.trim();
+
+  // Try JSON first (check if it starts with {)
+  if (trimmed.startsWith('{')) {
+    try {
+      const jsonData = JSON.parse(trimmed);
+      // Validate it's an object
+      if (typeof jsonData !== 'object' || jsonData === null || Array.isArray(jsonData)) {
+        throw new Error('JSON task must be an object');
+      }
+
+      // Convert JSON data to ParsedTask format
+      // JSON keys should match lowercase ParsedTask keys
+      const task: ParsedTask = {
+        title: jsonData.title as string,
+      };
+
+      // Add description if present
+      if (jsonData.description !== undefined) {
+        task.description = String(jsonData.description);
+      }
+
+      // Add custom fields (all other keys except title, description)
+      const standardKeys = new Set(['title', 'description']);
+      for (const [key, value] of Object.entries(jsonData)) {
+        if (!standardKeys.has(key.toLowerCase()) && value !== undefined && value !== null) {
+          // JSON keys are expected to be lowercase (matching ParsedTask format)
+          task[key.toLowerCase()] = String(value);
+        }
+      }
+
+      return task;
+    } catch (e) {
+      // JSON parse failed, try markdown parser
+      // Continue to markdown parsing below
+    }
+  }
+
+  // Fall back to markdown parser
+  return parser.parse(trimmed);
+}
+
+/**
  * Validates that required fields are not empty.
  * @throws {Error} if a required field is empty
  */
@@ -75,8 +130,9 @@ export async function updateCommand(
   // 5. Read current content via storage.read()
   const currentContent = await services.storage.read(id);
 
-  // 6. Parse via parser.parseJson() to get current ParsedTask
-  const currentTask = services.parser.parseJson(currentContent);
+  // 6. Parse content (may be JSON or markdown) to get current ParsedTask
+  // Use parseTaskContent for dual-format support (tries JSON first, falls back to markdown)
+  const currentTask = parseTaskContent(currentContent, services.parser);
 
   // 7. Collect new field values from options (reuse collectFields from add.ts)
   // Exclude 'id' from collection (it's a positional argument, not a field)
@@ -134,7 +190,7 @@ export async function updateCommand(
   // 10. Validate required fields after applying updates
   validateRequiredFields(updatedTask, config);
 
-  // 11. Serialize via parser.serializeToJson()
+  // 11. Serialize to JSON via parser.serializeToJson()
   const jsonData = services.parser.serializeToJson(updatedTask);
 
   // 12. Store original content for potential rollback
