@@ -47,12 +47,26 @@ export async function listCommand(options: ListCommandOptions, services: Service
   const indexData = await services.index.load();
 
   // 4. Parse each task with error handling
+  // JSON content is detected by checking if content starts with '{'
+  // Markdown content starts with '# Title' or other '# Section'
   const parsed: Array<{ id: string; task: ParsedTask }> = [];
   for (const task of tasks) {
     try {
+      const trimmed = task.content.trim();
+      let parsedTask: ParsedTask;
+
+      // Detect content type and use appropriate parser
+      if (trimmed.startsWith('{')) {
+        // JSON content
+        parsedTask = services.parser.parseJson(task.content);
+      } else {
+        // Markdown content
+        parsedTask = services.parser.parse(task.content);
+      }
+
       parsed.push({
         id: task.id,
-        task: services.parser.parse(task.content),
+        task: parsedTask,
       });
     } catch (error) {
       console.error(`Предупреждение: задача ${task.id}: ${(error as Error).message} — пропущена`);
