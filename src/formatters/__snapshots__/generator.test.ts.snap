@@ -1,0 +1,78 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MarkdownGenerator > edge cases > должен обрабатывать многострочные значения 1`] = `
+"# Title
+Test Task
+
+# Description
+Line 1
+Line 2
+Line 3
+"
+`;
+
+exports[`MarkdownGenerator > генерация базовой структуры > должен генерировать markdown с обязательной секцией Title 1`] = `
+"# Title
+Test Task
+"
+`;
+
+exports[`MarkdownGenerator > кастомные поля > должен включать кастомные поля в LOWERCASE 1`] = `
+"# Title
+Test Task
+
+# Priority
+high
+"
+`;
+
+exports[`MarkdownGenerator > полный пример > должен генерировать полный markdown со всеми секциями 1`] = `
+"# Title
+Implement feature
+
+# Description
+Detailed description of the feature
+
+# Dependencies
+2, 3
+
+# Assignee
+john@example.com
+
+# Estimate
+5h
+
+# Priority
+high
+"
+`;
+
+exports[`MarkdownGenerator > секция Dependencies > должен включать Dependencies из indexData если есть зависимости 1`] = `
+"# Title
+Test Task
+
+# Dependencies
+2, 3, 5
+"
+`;
+
+exports[`MarkdownGenerator > секция Description > должен включать Description если значение присутствует 1`] = `
+"# Title
+Test Task
+
+# Description
+This is a description
+"
+`;
+
+exports[`MarkdownGenerator integration tests > Unicode поддержка > должен корректно капитализировать кириллицу 1`] = `
+"# Title
+Задача с русским названием
+
+# Исполнитель
+иван
+
+# Приоритет
+высокий
+"
+`;

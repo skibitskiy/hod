@@ -1,7 +1,10 @@
 import type { ParsedTask } from '../../parser/types.js';
 import type { Services } from '../services.js';
 import type { Config } from '../../config/types.js';
+import type { TaskData } from '../../types.js';
+import type { IndexData } from '../../index/types.js';
 import { validateCliId } from '../../utils/validation.js';
+import { generate } from '../../formatters/generator.js';
 
 export interface GetCommandOptions {
   title?: boolean;
@@ -52,7 +55,7 @@ export async function getCommand(
 
   // 6. Output based on options
   if (options.markdown) {
-    outputMarkdown(parsed, indexEntry);
+    outputMarkdown(id, parsed, indexData);
   } else if (options.json) {
     outputJson(id, parsed, indexEntry);
   } else if (options.title) {
@@ -175,51 +178,17 @@ function outputJson(
 /**
  * Output task as markdown (original format)
  */
-function outputMarkdown(
-  parsed: ParsedTask,
-  indexEntry: { status: string; dependencies: string[] } | undefined,
-): void {
-  // Title section (always first, required)
-  console.log(`# Title`);
-  console.log(parsed.title || '');
-  console.log();
-
-  // Description section (if present)
-  if (parsed.description) {
-    console.log(`# Description`);
-    console.log(parsed.description);
-    console.log();
-  }
-
-  // Status is NOT included in markdown (stored in index only)
-
-  // Dependencies section (if present) - from index, not parsed task
-  // Note: dependencies are managed in index, this is just for display
-  // In future, this section may be removed entirely
-  const deps = indexEntry?.dependencies;
-  if (deps && deps.length > 0) {
-    console.log(`# Dependencies`);
-    console.log(deps.join(', '));
-    console.log();
-  }
-
-  // Custom fields (sorted by key name for consistency)
-  const standardFields = ['title', 'description', 'status', 'dependencies'];
-  const customFields: Record<string, string> = {};
+function outputMarkdown(id: string, parsed: ParsedTask, indexData: IndexData | undefined): void {
+  // Convert ParsedTask to TaskData (filter out non-string values)
+  const taskData: TaskData = { title: parsed.title || '' };
 
   for (const [key, value] of Object.entries(parsed)) {
-    if (standardFields.includes(key)) continue;
-    if (typeof value === 'string' && value !== '') {
-      // Convert field name to Markdown key (capitalize first letter)
-      const markdownKey = key.charAt(0).toUpperCase() + key.slice(1);
-      customFields[markdownKey] = value;
+    if (key === 'title' || key === 'dependencies' || key === 'status') continue;
+    if (typeof value === 'string') {
+      taskData[key] = value;
     }
   }
 
-  // Output custom fields sorted by key
-  for (const [markdownKey, value] of Object.entries(customFields).sort()) {
-    console.log(`# ${markdownKey}`);
-    console.log(value);
-    console.log();
-  }
+  const markdown = generate(id, taskData, indexData);
+  console.log(markdown);
 }
