@@ -3,6 +3,7 @@ export {
   StorageAlreadyExistsError,
   StorageNotFoundError,
   StorageWriteError,
+  StorageParseError,
 } from './errors.js';
 export {
   createStorageService,

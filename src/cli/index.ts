@@ -249,11 +249,5 @@ export async function main(): Promise<void> {
   await program.parseAsync(process.argv);
 }
 
-// Run CLI if this file is executed directly
-// Note: ESM uses import.meta.url, CJS bundle uses require.main check
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error('Критическая ошибка:', error);
-    process.exit(1);
-  });
-}
+// Note: Direct execution check handled by esbuild footer in CJS bundle
+// For ESM, consumers should call main() directly

@@ -1,3 +1,10 @@
+export class StorageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StorageError';
+  }
+}
+
 export class StorageNotFoundError extends Error {
   constructor(
     id: string,
@@ -32,5 +39,18 @@ export class StorageAccessError extends Error {
   ) {
     super(message);
     this.name = 'StorageAccessError';
+  }
+}
+
+export class StorageParseError extends StorageError {
+  constructor(
+    message: string,
+    public readonly fileId: string,
+    public readonly parseMessage: string,
+    public readonly position?: string,
+    public cause?: Error,
+  ) {
+    super(message);
+    this.name = 'StorageParseError';
   }
 }
