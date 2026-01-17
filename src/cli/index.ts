@@ -6,6 +6,7 @@ import { updateCommand, type UpdateCommandOptions } from './commands/update.js';
 import { deleteCommand, type DeleteCommandOptions } from './commands/delete.js';
 import { moveCommand, type MoveCommandOptions } from './commands/move.js';
 import { initCommand, type InitCommandOptions } from './commands/init.js';
+import { getCommand, type GetCommandOptions } from './commands/get.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 
@@ -191,6 +192,34 @@ async function registerInitCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'get' command.
+ */
+async function registerGetCommand(): Promise<void> {
+  const services = await createServices();
+
+  program
+    .command('get <id>')
+    .description('Получить задачу по ID')
+    .option('--title', 'Вывести только заголовок')
+    .option('--status', 'Вывести только статус')
+    .option('--dependencies', 'Вывести только зависимости')
+    .option('--json', 'Вывод в формате JSON')
+    .option('--markdown', 'Вывод в markdown формате (как в файле)')
+    .action(async (id: string, options: GetCommandOptions) => {
+      try {
+        await getCommand(id, options, services);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Main CLI entry point.
  */
 export async function main(): Promise<void> {
@@ -213,6 +242,9 @@ export async function main(): Promise<void> {
 
   // Register init command
   await registerInitCommand();
+
+  // Register get command
+  await registerGetCommand();
 
   await program.parseAsync(process.argv);
 }
