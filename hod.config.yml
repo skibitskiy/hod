@@ -1,0 +1,7 @@
+tasksDir: ./tasks
+fields:
+  Title:
+    name: title
+    required: true
+  Description:
+    name: description

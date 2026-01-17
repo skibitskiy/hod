@@ -1,0 +1,12 @@
+{
+  "1": {
+    "status": "pending",
+    "dependencies": []
+  },
+  "2": {
+    "status": "pending",
+    "dependencies": [
+      "1"
+    ]
+  }
+}

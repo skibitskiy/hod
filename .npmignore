@@ -1,0 +1,34 @@
+# Source files
+src/
+*.ts
+!*.d.ts
+
+# Tests
+*.test.ts
+*.test.js
+__tests__/
+coverage/
+.vitest/
+
+# Development
+.eslintrc*
+.prettierrc*
+.husky/
+.vscode/
+
+# Build artifacts (keep dist/)
+tsconfig.json
+esbuild.config.mjs
+
+# Tasks directory
+tasks/
+hod.config.yml
+
+# CI/CD
+.github/
+
+# Documentation (keep README.md)
+CLAUDE.md
+COMMIT_CONVENTION.md
+*.md
+!README.md

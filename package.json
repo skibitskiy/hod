@@ -2,11 +2,30 @@
   "name": "hod",
   "version": "1.0.0",
   "type": "module",
-  "description": "HOD project",
-  "main": "dist/index.js",
+  "description": "HOD — Markdown-based task manager with subtasks and dependencies",
+  "main": "./dist/cli/index.js",
+  "bin": {
+    "hod": "./dist/cli/index.cjs"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/cli/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "node esbuild.config.mjs",
+    "build:prod": "node esbuild.config.mjs --production",
+    "build:watch": "node esbuild.config.mjs --watch",
+    "dev": "npm run build:watch",
+    "dev:link": "npm run build && npm link",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix && npm run format",
@@ -15,9 +34,20 @@
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepublishOnly": "npm run build:prod",
+    "prepack": "npm run build:prod"
   },
-  "keywords": [],
+  "keywords": [
+    "task-manager",
+    "markdown",
+    "cli",
+    "productivity",
+    "todo",
+    "task-tracker",
+    "subtasks",
+    "dependencies"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -25,6 +55,7 @@
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
     "@vitest/ui": "^4.0.16",
+    "esbuild": "^0.27.2",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
