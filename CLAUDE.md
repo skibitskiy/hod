@@ -1,21 +1,64 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # HOD — Задачник для Markdown
 
 Утилита для управления задачами в текстовом виде (Markdown) с поддержкой подзадач и зависимостей.
+
+## Development Commands
+
+```bash
+npm run build          # Build CLI to dist/
+npm run build:prod     # Production build (minified, no sourcemap)
+npm run build:watch    # Watch mode for development
+npm run dev:link       # Build and npm link for local testing
+
+npm run typecheck      # TypeScript type checking
+npm run lint           # ESLint
+npm run lint:fix       # ESLint auto-fix + Prettier format
+npm run format         # Prettier format
+npm run format:check   # Prettier check
+
+npm test               # Run all tests
+npm run test:ui        # Vitest UI
+npm run test:coverage  # Coverage report
+```
+
+**Running single test:** `npx vitest run path/to/test.test.ts`
 
 ## Архитектура
 
 ```
 src/
-├── config/           # Задача 2 ✓
-│   └── config.ts     # Конфигурация из YAML
-├── storage/          # Задача 3 ✓
-│   └── storage.ts    # CRUD для файлов задач
-├── parser/           # Задача 4 ✓
-│   └── parser.ts     # Markdown парсер
-├── index/            # Задача 13
-│   └── index.ts      # Индекс зависимостей
-└── cli/              # Задачи 5-9, 12
-    └── cli.ts        # CLI команды
+├── config/           # Конфигурация из YAML (hod.config.yml)
+│   ├── index.ts      # ConfigService + фабрика
+│   ├── types.ts      # Config, FieldConfig интерфейсы
+│   └── errors.ts     # ConfigLoadError, ConfigValidationError
+├── storage/          # CRUD для файлов задач
+│   ├── storage.ts    # StorageService + фабрика
+│   └── errors.ts     # StorageNotFoundError, StorageWriteError, etc.
+├── parser/           # Markdown парсер
+│   ├── parser.ts     # parse() для markdown → ParsedTask
+│   └── types.ts      # ParsedTask интерфейс
+├── index/            # Индекс зависимостей (tasks/.hod/index.json)
+│   ├── index.ts      # IndexService + фабрика
+│   ├── types.ts      # IndexData, TaskIndexData
+│   └── errors.ts     # CircularDependencyError, IndexLoadError, etc.
+├── formatters/       # Markdown генератор
+│   ├── generator.ts  # generate() для TaskData → markdown
+│   └── errors.ts     # GenerationError
+├── utils/
+│   ├── sort.ts       # sortIds() — числовая сортировка по сегментам
+│   └── validation.ts # validateTaskId() — regex + length check
+├── cli/              # CLI команды
+│   ├── index.ts      # Commander entry point, динамические опции
+│   ├── services.ts   # createServices() — DI контейнер
+│   ├── tree.ts       # renderTree() для --tree вывода
+│   ├── commands/     # Отдельные команды (add, list, update, delete, move, init, get)
+│   └── utils/
+│       └── subtasks.ts # generateSubtaskId(), findMainParent()
+└── types.ts          # TaskData интерфейс
 ```
 
 ## Ключевые решения
@@ -34,16 +77,12 @@ src/
 # Description
 Описание задачи
 
-# Status
-pending
-
-# Dependencies
-1, 2, 5
+# Priority
+high
 ```
 
 - `# Title` — обязателен
-- `# Dependencies` — всегда присутствует (пустой если `[]`)
-- `# Description`, `# Status` — опциональны
+- `# Dependencies`, `# Status` — хранятся в индексе (`tasks/.hod/index.json`), НЕ в markdown
 - Любой `# Key` начинает новую секцию (кастомные поля)
 
 ### 2. Конфигурация (hod.config.yml)
@@ -68,19 +107,18 @@ fields:
 
 ### 3. Индекс зависимостей (tasks/.hod/index.json)
 
-**Формат:** только зависимости
+**Формат:**
 ```json
 {
-  "1": [],
-  "1.1": ["1"],
-  "2": ["1", "3"],
-  "3": ["1", "2"]
+  "1": { "status": "pending", "dependencies": [] },
+  "1.1": { "status": "completed", "dependencies": ["1"] },
+  "2": { "status": "pending", "dependencies": ["1", "3"] }
 }
 ```
 
-- Хранит только `dependencies` для быстрого `hod next`
+- Хранит `status` и `dependencies` для быстрого `hod next`
 - Обновляется при каждом `add/update/delete`
-- Пересобирается через `hod sync`
+- Markdown файлы содержат только пользовательские поля (Title, Description, кастомные)
 
 ### 4. Модули
 
@@ -130,9 +168,7 @@ class StorageAccessError extends Error { }
 interface ParsedTask {
   title: string;
   description?: string;
-  status: string;
-  dependencies: string[];
-  [key: string]: string | string[] | undefined;
+  [key: string]: string | undefined;  // Только string поля
 }
 
 class ParseError extends Error {
@@ -141,21 +177,35 @@ class ParseError extends Error {
 ```
 
 - Любой `# ` начинает секцию
-- Только `Dependencies` = `string[]`, остальные = `string`
+- Все поля = `string` (dependencies/status теперь в индексе)
 - Пустой ввод → `ParseError`
-- Trim значений, фильтрация пустых элементов
+- Trim значений
+
+#### Formatters
+```ts
+function generate(id: string, data: TaskData, indexData?: IndexData): string;
+```
+
+- Генерирует markdown из `TaskData`
+- Порядок секций: Title → Description → Dependencies (если есть в indexData) → Custom (alphabetically)
+- Dependencies берутся из `indexData`, не из `data`
 
 ## CLI команды
 
 ```bash
-hod add --Title "Задача" --Description "Описание"
-hod list [--status pending] [--json]
-hod update --id 1 --Status completed
-hod delete --id 1 [--force]
-hod init [--dir ./tasks]
-hod next [--all]
-hod sync
+hod init [--dir ./tasks]                    # Инициализация проекта
+hod add --title "Задача" [options]          # Создать задачу
+hod list [--json] [--tree] [--status val]   # Список задач
+hod get <id> [options]                      # Получить задачу
+hod update <id> [options]                   # Обновить задачу
+hod move <id> --parent <id>                 # Переместить задачу
+hod delete <id> [--recursive]               # Удалить задачу
 ```
+
+**Динамические опции полей:**
+- Опции для кастомных полей генерируются из `hod.config.yml`
+- Формат: `--field-name` (kebab-case) → markdown ключ `FieldName`
+- Пример: конфиг `Title: {name: title}` → CLI `--title "Value"`
 
 ## Общие паттерны
 
@@ -178,34 +228,29 @@ await fs.rename(tempPath, targetPath);  // atomic on POSIX
 ```
 
 ### Платформа
-- **POSIX-only** в v1
+- **POSIX-only** в v1 (atomic rename для Storage и Index)
 - UTF-8 encoding
-- Логирование нет в v1
+- Логирования нет в v1
+- Target: Node.js 18+
 
-## Зависимости задач
+### Подзадачи
+- ID формата `1.2`, `1.2.3` и т.д.
+- `--parent <id>` создает подзадачу автоматически
+- `hod move <id> --parent <new>` перемещает подзадачу
+- `utils/subtasks.ts` содержит `generateSubtaskId()` для генерации ID
 
-```json
-{
-  "1": [],              // init project
-  "11": ["1"],          // vitest
-  "10": ["11"],         // tests
-  "2": ["1", "11"],     // config
-  "13": ["2"],          // index ← следующий
-  "3": ["2"],           // storage ✓
-  "4": ["3"],           // parser ✓
-  "5": ["4", "13"],     // cli add
-  "6": ["4", "13"],     // cli list
-  "7": ["5", "6"],      // subtasks
-  "8": ["6"],           // cli update/delete
-  "9": ["2"],           // cli init
-  "12": ["13"]          // cli next
-}
-```
+## Реализованные модули
 
-## Статус
+- **Config** — загрузка из YAML с дефолтами, zod валидация
+- **Storage** — файловый CRUD, атомарные операции, POSIX-only
+- **Parser** — markdown → ParsedTask, поддержка кастомных полей
+- **Index** — зависимости в JSON, цикловая детекция, getNextTasks()
+- **Formatters** — TaskData → markdown генератор
+- **CLI** — add, list, get, update, delete, move, init с динамическими опциями
 
-- **Задача 2** (Config) — готова ✓
-- **Задача 3** (Storage) — готова ✓
-- **Задача 4** (Parser) — готова ✓
-- **Задача 13** (Index) — следующая
-- **Задачи 5-9, 12** (CLI) — ожидают 13
+## Тестирование
+
+- **Vitest** + **memfs** для filesystem операций
+- Интеграционные тесты: `*.integration.test.ts`
+- Все модули тестируемы через внедрение `fs` параметра
+- `createServices()` в `cli/services.ts` — DI контейнер для CLI команд
