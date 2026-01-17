@@ -126,6 +126,42 @@ describe('get command', () => {
 
       expect(logs.join('\n')).toContain('Test Task');
     });
+
+    it('должен парсить JSON контент', async () => {
+      const content = '{"title":"Test Task","description":"Test Description"}';
+      const services = createMockServices(content);
+      const options: GetCommandOptions = {};
+
+      await getCommand('1', options, services);
+
+      expect(logs.join('\n')).toContain('Test Task');
+    });
+
+    it('должен правильно определять формат JSON vs markdown', async () => {
+      // JSON format
+      const jsonContent = '{"title":"Task"}';
+      let services = createMockServices(jsonContent);
+      await getCommand('1', {}, services);
+      expect(logs.join('\n')).toContain('Task');
+
+      // Markdown format
+      logs = [];
+      const mdContent = '# Title\nTask';
+      services = createMockServices(mdContent);
+      await getCommand('1', {}, services);
+      expect(logs.join('\n')).toContain('Task');
+    });
+
+    it('не должен парсить невалидный JSON как JSON', async () => {
+      // Invalid JSON that starts with { but is malformed
+      // Should be detected as NOT JSON by isJsonContent, then fail markdown parsing
+      const content = '{invalid json}';
+      const services = createMockServices(content);
+      const options: GetCommandOptions = {};
+
+      // Should throw ParseError from markdown parser (not JSON parser)
+      await expect(async () => await getCommand('1', options, services)).rejects.toThrow('Title');
+    });
   });
 
   describe('опция --title', () => {

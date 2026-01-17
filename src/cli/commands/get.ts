@@ -5,6 +5,7 @@ import type { TaskData } from '../../types.js';
 import type { IndexData } from '../../index/types.js';
 import { validateCliId } from '../../utils/validation.js';
 import { generate } from '../../formatters/generator.js';
+import { ParseError } from '../../parser/types.js';
 
 export interface GetCommandOptions {
   title?: boolean;
@@ -12,6 +13,24 @@ export interface GetCommandOptions {
   status?: boolean;
   json?: boolean;
   markdown?: boolean;
+}
+
+/**
+ * Detects if content is JSON or markdown format.
+ * Uses JSON.parse() to validate instead of brittle brace checking.
+ */
+function isJsonContent(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{')) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    // Must be an object (not null, array, or primitive)
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -43,8 +62,21 @@ export async function getCommand(
     throw error;
   }
 
-  // 3. Parse markdown content
-  const parsed = services.parser.parse(content);
+  // 3. Parse content (JSON or markdown)
+  let parsed: ParsedTask;
+
+  try {
+    if (isJsonContent(content)) {
+      parsed = services.parser.parseJson(content);
+    } else {
+      parsed = services.parser.parse(content);
+    }
+  } catch (error) {
+    if (error instanceof ParseError) {
+      throw new Error(`Ошибка парсинга задачи ${id}: ${error.message}`);
+    }
+    throw error;
+  }
 
   // 4. Load index data (status and dependencies)
   const indexData = await services.index.load();
