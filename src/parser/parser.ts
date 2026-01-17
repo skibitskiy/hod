@@ -6,6 +6,7 @@ export interface ParserService {
   serialize(task: ParsedTask): string;
   parseJson(jsonString: string): ParsedTask;
   serializeToJson(task: ParsedTask): string;
+  serializeJson(task: ParsedTask): string;
 }
 
 class ParserServiceImpl implements ParserService {
