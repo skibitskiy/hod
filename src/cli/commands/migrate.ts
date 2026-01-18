@@ -1,5 +1,5 @@
 import type { Services } from '../services.js';
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, unlink } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import type { FileIO } from './migrate-types.js';
 
@@ -9,6 +9,7 @@ const defaultFs: FileIO = {
   writeFile,
   mkdir,
   rename,
+  unlink,
 };
 
 export interface MigrateCommandOptions {
@@ -99,18 +100,39 @@ export async function migrateCommand(
   } else {
     const outputPath = options.output || resolvedPath.replace(/\.md$/, '.json');
 
-    try {
-      // Create parent directories if needed
-      const outputDir = dirname(outputPath);
-      await fsModule.mkdir(outputDir, { recursive: true });
+    // Create parent directories if needed
+    const outputDir = dirname(outputPath);
+    await fsModule.mkdir(outputDir, { recursive: true });
 
-      // Atomic write: write to temp file first, then rename
-      const tempPath = `${outputPath}.tmp`;
+    // Atomic write: write to temp file first, then rename
+    const tempPath = `${outputPath}.tmp`;
+
+    // Cleanup old .tmp if exists
+    if (fsModule.unlink) {
+      try {
+        await fsModule.unlink(tempPath);
+      } catch {
+        // Ignore if file doesn't exist
+      }
+    }
+
+    let tempFileCreated = false;
+
+    try {
       await fsModule.writeFile(tempPath, jsonContent, { encoding: 'utf-8' });
+      tempFileCreated = true;
       await fsModule.rename(tempPath, outputPath);
 
       console.log(`✓ Файл мигрирован: ${resolvedPath} -> ${outputPath}`);
     } catch (error) {
+      // Clean up temp file if it was created
+      if (tempFileCreated && fsModule.unlink) {
+        try {
+          await fsModule.unlink(tempPath);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
       if (error instanceof Error) {
         throw new Error(`Ошибка записи файла: ${error.message}`);
       }

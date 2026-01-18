@@ -8,6 +8,7 @@ import { moveCommand, type MoveCommandOptions } from './commands/move.js';
 import { initCommand, type InitCommandOptions } from './commands/init.js';
 import { getCommand, type GetCommandOptions } from './commands/get.js';
 import { migrateCommand, type MigrateCommandOptions } from './commands/migrate.js';
+import { mdCommand, type MdCommandOptions } from './commands/md.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 
@@ -221,6 +222,31 @@ async function registerGetCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'md' command.
+ */
+async function registerMdCommand(): Promise<void> {
+  const services = await createServices();
+
+  program
+    .command('md <id>')
+    .description('Конвертировать задачу в markdown формат')
+    .option('-o, --output <path>', 'Путь для сохранения markdown файла')
+    .option('-s, --stdout', 'Вывести markdown в stdout вместо записи в файл')
+    .action(async (id: string, options: MdCommandOptions) => {
+      try {
+        await mdCommand(id, options, services);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Registers the 'migrate' command.
  */
 async function registerMigrateCommand(): Promise<void> {
@@ -274,6 +300,9 @@ export async function main(): Promise<void> {
 
   // Register migrate command
   await registerMigrateCommand();
+
+  // Register md command
+  await registerMdCommand();
 
   await program.parseAsync(process.argv);
 }

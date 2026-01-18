@@ -53,6 +53,9 @@ const createMemfsFileIO = (vol: Volume): FileIO => ({
   rename: vi.fn().mockImplementation((oldPath: string | URL, newPath: string | URL) => {
     return vol.promises.rename(oldPath, newPath);
   }),
+  unlink: vi.fn().mockImplementation((path: string | URL) => {
+    return vol.promises.unlink(path);
+  }),
 });
 
 describe('migrate command', () => {
@@ -336,6 +339,24 @@ describe('migrate command', () => {
       vol.mkdirSync('/test-dir');
 
       await expect(migrateCommand('/test-dir.md', options, services, memfsIO)).rejects.toThrow();
+    });
+
+    it('должен очищать временный файл при ошибке записи', async () => {
+      const options: MigrateCommandOptions = {};
+      const mdPath = '/task.md';
+      const mdContent = '# Title\nTest Task';
+      vol.writeFileSync(mdPath, mdContent);
+
+      // Mock rename to fail after writeFile succeeds
+      vi.mocked(memfsIO.rename).mockRejectedValue(new Error('Rename failed'));
+
+      await expect(migrateCommand(mdPath, options, services, memfsIO)).rejects.toThrow(
+        'Rename failed',
+      );
+
+      // Temp file should be cleaned up
+      const tempPath = '/task.json.tmp';
+      expect(vol.existsSync(tempPath)).toBe(false);
     });
   });
 });

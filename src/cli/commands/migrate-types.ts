@@ -7,4 +7,5 @@ export interface FileIO {
   writeFile(path: string | URL, data: string, options: { encoding: BufferEncoding }): Promise<void>;
   mkdir(path: string | URL, options: { recursive: boolean }): Promise<string | undefined>;
   rename(oldPath: string | URL, newPath: string | URL): Promise<void>;
+  unlink?(path: string | URL): Promise<void>;
 }
