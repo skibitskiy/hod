@@ -1,5 +1,5 @@
 {
-  "name": "hod",
+  "name": "@skibitskiy/hod",
   "version": "1.0.0",
   "type": "module",
   "description": "HOD — Markdown-based task manager with subtasks and dependencies",
