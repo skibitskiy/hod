@@ -59,9 +59,10 @@ export interface IndexService {
   /**
    * Возвращает ID задач готовых к выполнению.
    * Загружает индекс из файла для получения актуальных статусов.
+   * @param doneStatus - Статус(ы) считающиеся выполненными (по умолчанию 'completed')
    * @returns Отсортированный массив ID задач
    */
-  getNextTasks(): Promise<string[]>;
+  getNextTasks(doneStatus?: string | string[]): Promise<string[]>;
 }
 
 /**
@@ -327,7 +328,7 @@ class IndexServiceImpl implements IndexService {
     await atomicWriteIndex(this.tasksDir, index, this.fs);
   }
 
-  async getNextTasks(): Promise<string[]> {
+  async getNextTasks(doneStatus: string | string[] = 'completed'): Promise<string[]> {
     // Загружаем индекс для получения актуальных статусов
     const index = await this.load();
 
@@ -335,12 +336,15 @@ class IndexServiceImpl implements IndexService {
       return [];
     }
 
+    // Нормализуем doneStatus в массив для удобства проверки
+    const doneStatuses = Array.isArray(doneStatus) ? doneStatus : [doneStatus];
+
     const readyTasks: string[] = [];
 
     // Проходим по всем задачам в индексе
     for (const [taskId, taskData] of Object.entries(index)) {
       // Пропускаем выполненные задачи
-      if (taskData.status === 'completed') {
+      if (doneStatuses.includes(taskData.status)) {
         continue;
       }
 
@@ -348,7 +352,7 @@ class IndexServiceImpl implements IndexService {
       const allDepsCompleted = taskData.dependencies.every((depId) => {
         const depData = index[depId];
         // Если зависимости нет в индексе - считаем что не выполнена
-        return depData?.status === 'completed';
+        return depData?.status !== undefined && doneStatuses.includes(depData.status);
       });
 
       if (allDepsCompleted) {

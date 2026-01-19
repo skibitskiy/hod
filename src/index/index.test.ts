@@ -323,6 +323,50 @@ describe('IndexService', () => {
       // Задача 6 не должна быть в списке (зависимость 99 отсутствует)
       expect(result).toEqual(['1', '5']);
     });
+
+    it('должен принимать кастомный doneStatus (string)', async () => {
+      await service.update('1', { status: 'done', dependencies: [] });
+      await service.update('2', { status: 'done', dependencies: ['1'] });
+      await service.update('3', { status: 'done', dependencies: ['1', '2'] });
+      await service.update('4', { status: 'done', dependencies: ['5'] });
+      await service.update('5', { status: 'done', dependencies: [] });
+
+      const result = await service.getNextTasks('done');
+
+      // Все задачи имеют статус 'done', который является doneStatus, поэтому они все пропускаются
+      expect(result).toEqual([]);
+    });
+
+    it('должен принимать кастомный doneStatus (array)', async () => {
+      await service.update('1', { status: 'done', dependencies: [] });
+      await service.update('2', { status: 'done', dependencies: ['1'] });
+      await service.update('3', { status: 'closed', dependencies: ['1', '2'] });
+      await service.update('4', { status: 'done', dependencies: ['5'] });
+      await service.update('5', { status: 'closed', dependencies: [] });
+
+      const result = await service.getNextTasks(['done', 'closed']);
+
+      // Все задачи имеют статусы из doneStatus, поэтому они пропускаются
+      expect(result).toEqual([]);
+    });
+
+    it('должен проверять зависимости по кастомному doneStatus', async () => {
+      await service.update('1', { status: 'done', dependencies: [] });
+
+      const result = await service.getNextTasks('done');
+
+      // Задача 2 готова: зависимость 1 имеет статус 'done'
+      expect(result).toEqual(['2', '5']);
+    });
+
+    it('должен проверять зависимости по массиву doneStatus', async () => {
+      await service.update('1', { status: 'done', dependencies: [] });
+
+      const result = await service.getNextTasks(['done', 'completed']);
+
+      // Задача 2 готова: зависимость 1 имеет статус 'done' (из массива)
+      expect(result).toEqual(['2', '5']);
+    });
   });
 
   describe('интеграционные сценарии', () => {

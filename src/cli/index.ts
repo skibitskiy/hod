@@ -9,6 +9,7 @@ import type { InitCommandOptions } from './commands/init.js';
 import { getCommand, type GetCommandOptions } from './commands/get.js';
 import { migrateCommand, type MigrateCommandOptions } from './commands/migrate.js';
 import { mdCommand, type MdCommandOptions } from './commands/md.js';
+import { nextCommand, type NextCommandOptions } from './commands/next.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 import { ConfigNotFoundError } from '../config/errors.js';
@@ -410,6 +411,47 @@ async function registerMigrateCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'next' command.
+ */
+async function registerNextCommand(): Promise<void> {
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('next')
+        .description('Показать задачи готовые к выполнению')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
+
+  program
+    .command('next')
+    .description('Показать задачи готовые к выполнению')
+    .option('--all', 'Показать все готовые задачи')
+    .option('--json', 'Вывод в формате JSON')
+    .action(async (options: NextCommandOptions) => {
+      try {
+        await nextCommand(options, services);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Main CLI entry point.
  */
 export async function main(): Promise<void> {
@@ -441,6 +483,9 @@ export async function main(): Promise<void> {
 
   // Register md command
   await registerMdCommand();
+
+  // Register next command
+  await registerNextCommand();
 
   await program.parseAsync(process.argv);
 }

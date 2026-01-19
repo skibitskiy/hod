@@ -48,6 +48,7 @@ const configSchema = z
         (fields) => Object.keys(fields).length >= 1,
         'fields must contain at least one field',
       ),
+    doneStatus: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
   })
   .strict();
 
@@ -83,6 +84,7 @@ export class ConfigServiceImpl implements ConfigService {
         Description: { name: 'description' },
         Status: { name: 'status', default: 'pending' },
       },
+      doneStatus: 'completed',
     };
 
     await writeFile(configPath, stringify(defaultConfig), 'utf-8');

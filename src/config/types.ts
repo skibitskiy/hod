@@ -7,6 +7,7 @@ export interface FieldConfig {
 export interface Config {
   tasksDir: string;
   fields: Record<string, FieldConfig>;
+  doneStatus?: string | string[];
 }
 
 export interface ConfigService {
