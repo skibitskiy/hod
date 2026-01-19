@@ -5,12 +5,13 @@ import { listCommand, type ListCommandOptions } from './commands/list.js';
 import { updateCommand, type UpdateCommandOptions } from './commands/update.js';
 import { deleteCommand, type DeleteCommandOptions } from './commands/delete.js';
 import { moveCommand, type MoveCommandOptions } from './commands/move.js';
-import { initCommand, type InitCommandOptions } from './commands/init.js';
+import type { InitCommandOptions } from './commands/init.js';
 import { getCommand, type GetCommandOptions } from './commands/get.js';
 import { migrateCommand, type MigrateCommandOptions } from './commands/migrate.js';
 import { mdCommand, type MdCommandOptions } from './commands/md.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
+import { ConfigNotFoundError } from '../config/errors.js';
 
 const program = new Command();
 
@@ -28,8 +29,26 @@ function registerConfigOptions(command: Command, config: Config): void {
  * Registers the 'add' command with dynamic options from config.
  */
 async function registerAddCommand(): Promise<void> {
-  const services = await createServices();
-  const config = await services.config.load();
+  let services: Awaited<ReturnType<typeof createServices>>;
+  let config: Config;
+
+  try {
+    services = await createServices();
+    config = await services.config.load();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      // Register a placeholder command that shows the error
+      program
+        .command('add')
+        .description('Создать новую задачу')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   program
     .command('add')
@@ -58,8 +77,26 @@ async function registerAddCommand(): Promise<void> {
  * Registers the 'list' command with dynamic options from config.
  */
 async function registerListCommand(): Promise<void> {
-  const services = await createServices();
-  const config = await services.config.load();
+  let services: Awaited<ReturnType<typeof createServices>>;
+  let config: Config;
+
+  try {
+    services = await createServices();
+    config = await services.config.load();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      // Register a placeholder command that shows the error
+      program
+        .command('list')
+        .description('Показать список задач')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   const listCmd = program
     .command('list')
@@ -87,8 +124,26 @@ async function registerListCommand(): Promise<void> {
  * Registers the 'update' command with dynamic options from config.
  */
 async function registerUpdateCommand(): Promise<void> {
-  const services = await createServices();
-  const config = await services.config.load();
+  let services: Awaited<ReturnType<typeof createServices>>;
+  let config: Config;
+
+  try {
+    services = await createServices();
+    config = await services.config.load();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      // Register a placeholder command that shows the error
+      program
+        .command('update')
+        .description('Обновить задачу')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   const updateCmd = program
     .command('update <id>')
@@ -116,7 +171,23 @@ async function registerUpdateCommand(): Promise<void> {
  * Registers the 'delete' command.
  */
 async function registerDeleteCommand(): Promise<void> {
-  const services = await createServices();
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('delete')
+        .description('Удалить задачу')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   program
     .command('delete <id>')
@@ -141,7 +212,23 @@ async function registerDeleteCommand(): Promise<void> {
  * Registers the 'move' command.
  */
 async function registerMoveCommand(): Promise<void> {
-  const services = await createServices();
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('move')
+        .description('Переместить задачу под нового родителя')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   program
     .command('move <id>')
@@ -172,7 +259,9 @@ async function registerMoveCommand(): Promise<void> {
  * Registers the 'init' command.
  */
 async function registerInitCommand(): Promise<void> {
-  const services = await createServices();
+  // Init command doesn't need services to be created, it only needs configService
+  // which has the createDefault method
+  const { configService } = await import('../config/index.js');
 
   program
     .command('init')
@@ -180,8 +269,9 @@ async function registerInitCommand(): Promise<void> {
     .option('--dir <path>', 'Директория для задач (по умолчанию: ./tasks)')
     .action(async (options: InitCommandOptions) => {
       try {
-        const message = await initCommand(options, services);
-        console.log(message);
+        const tasksDir = options.dir || './tasks';
+        const result = await configService.createDefault(tasksDir);
+        console.log(result.message);
       } catch (error) {
         if (error instanceof Error) {
           console.error(error.message);
@@ -197,7 +287,23 @@ async function registerInitCommand(): Promise<void> {
  * Registers the 'get' command.
  */
 async function registerGetCommand(): Promise<void> {
-  const services = await createServices();
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('get')
+        .description('Получить задачу по ID')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   program
     .command('get <id>')
@@ -206,7 +312,7 @@ async function registerGetCommand(): Promise<void> {
     .option('--status', 'Вывести только статус')
     .option('--dependencies', 'Вывести только зависимости')
     .option('--json', 'Вывод в формате JSON')
-    .option('--markdown', 'Вывод в markdown формате (как в файле)')
+    .option('--markdown', 'Вывести в markdown формате (как в файле)')
     .action(async (id: string, options: GetCommandOptions) => {
       try {
         await getCommand(id, options, services);
@@ -225,7 +331,23 @@ async function registerGetCommand(): Promise<void> {
  * Registers the 'md' command.
  */
 async function registerMdCommand(): Promise<void> {
-  const services = await createServices();
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('md')
+        .description('Конвертировать задачу в markdown формат')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   program
     .command('md <id>')
@@ -250,7 +372,23 @@ async function registerMdCommand(): Promise<void> {
  * Registers the 'migrate' command.
  */
 async function registerMigrateCommand(): Promise<void> {
-  const services = await createServices();
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('migrate')
+        .description('Конвертировать .md файл в .json формат')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
 
   program
     .command('migrate <file>')

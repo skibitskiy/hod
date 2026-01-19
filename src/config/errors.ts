@@ -8,6 +8,13 @@ export class ConfigLoadError extends Error {
   }
 }
 
+export class ConfigNotFoundError extends Error {
+  constructor() {
+    super('Configuration file not found (hod.config.yml). Run "hod init" to create a new project.');
+    this.name = 'ConfigNotFoundError';
+  }
+}
+
 export class ConfigValidationError extends Error {
   constructor(public issues: unknown[]) {
     super('Configuration validation failed');

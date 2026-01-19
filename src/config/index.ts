@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { z } from 'zod';
 import type { Config, ConfigService, FieldConfig } from './types.js';
-import { ConfigLoadError, ConfigValidationError } from './errors.js';
+import { ConfigLoadError, ConfigNotFoundError, ConfigValidationError } from './errors.js';
 
 const MARKDOWN_KEY_REGEX = /^[A-Za-z0-9_-]{1,50}$/;
 const NAME_REGEX = /^[a-z0-9-]{1,50}$/;
@@ -51,15 +51,6 @@ const configSchema = z
   })
   .strict();
 
-const DEFAULT_CONFIG: Config = {
-  tasksDir: './tasks',
-  fields: {
-    Title: { name: 'title', required: true },
-    Description: { name: 'description' },
-    Status: { name: 'status', default: 'pending' },
-  },
-};
-
 export class ConfigServiceImpl implements ConfigService {
   async createDefault(
     tasksDir: string = './tasks',
@@ -99,13 +90,58 @@ export class ConfigServiceImpl implements ConfigService {
     return { created: true, message: 'HOD проект инициализирован' };
   }
 
-  async load(path?: string): Promise<Config> {
-    const configPath = path ? resolve(path) : resolve(process.cwd(), 'hod.config.yml');
+  /**
+   * Find config file by traversing up the directory tree.
+   * Returns the resolved path to the config file, or null if not found.
+   */
+  private async findConfigPath(startDir: string): Promise<string | null> {
+    let currentDir = resolve(startDir);
 
-    try {
-      await access(configPath);
-    } catch {
-      return { ...DEFAULT_CONFIG, tasksDir: resolve(process.cwd(), DEFAULT_CONFIG.tasksDir) };
+    while (true) {
+      const configPath = resolve(currentDir, 'hod.config.yml');
+
+      try {
+        await access(configPath);
+        return configPath;
+      } catch (e) {
+        const error = e as NodeJS.ErrnoException;
+        // If it's not a "not found" error (e.g., permission denied), propagate it
+        if (error.code !== 'ENOENT') {
+          throw new ConfigLoadError(`Cannot access config at ${configPath}`, error);
+        }
+        // File doesn't exist, go up one directory
+      }
+
+      const parentDir = dirname(currentDir);
+
+      // Stop if we've reached the root
+      if (parentDir === currentDir) {
+        return null;
+      }
+
+      currentDir = parentDir;
+    }
+  }
+
+  async load(path?: string): Promise<Config> {
+    let configPath: string;
+
+    if (path) {
+      configPath = resolve(path);
+      // Explicit path: verify it exists
+      try {
+        await access(configPath);
+      } catch {
+        throw new ConfigNotFoundError();
+      }
+    } else {
+      // Search upward from current directory
+      const foundPath = await this.findConfigPath(process.cwd());
+      if (foundPath) {
+        configPath = foundPath;
+      } else {
+        throw new ConfigNotFoundError();
+      }
     }
 
     const content = await readFile(configPath, 'utf-8');
@@ -118,7 +154,7 @@ export class ConfigServiceImpl implements ConfigService {
     }
 
     if (!rawConfig || typeof rawConfig !== 'object') {
-      return { ...DEFAULT_CONFIG, tasksDir: resolve(process.cwd(), DEFAULT_CONFIG.tasksDir) };
+      throw new ConfigLoadError('Configuration file is empty or invalid');
     }
 
     const config = this.validateAndParse(rawConfig);
