@@ -372,7 +372,7 @@ describe('add command - helper functions (unit tests)', () => {
         Status: 'in-progress',
       };
 
-      const task = fieldsToParsedTask(fields);
+      const task = fieldsToParsedTask(fields, mockConfig);
 
       expect(task.title).toBe('My Task');
       expect(task.description).toBe('Task description');
@@ -387,7 +387,7 @@ describe('add command - helper functions (unit tests)', () => {
         Tags: 'urgent,important',
       };
 
-      const task = fieldsToParsedTask(fields);
+      const task = fieldsToParsedTask(fields, mockConfig);
 
       // Custom fields теперь lowercase для совместимости с parser
       expect(task.priority).toBe('high');
@@ -400,7 +400,29 @@ describe('add command - helper functions (unit tests)', () => {
         Count: 42,
       } as unknown as Record<string, string>;
 
-      expect(() => fieldsToParsedTask(fields)).toThrow('Невалидное значение для поля');
+      expect(() => fieldsToParsedTask(fields, mockConfig)).toThrow('Невалидное значение для поля');
+    });
+
+    it('должен использовать kebab-case имя из конфига для кастомных полей', () => {
+      const configWithKebab: Config = {
+        tasksDir: '/tasks',
+        fields: {
+          Title: { name: 'title', required: true },
+          Description: { name: 'description' },
+          TestStrategy: { name: 'test-strategy' },
+        },
+      };
+
+      const fields: Record<string, string> = {
+        Title: 'Task',
+        TestStrategy: 'unit tests',
+      };
+
+      const task = fieldsToParsedTask(fields, configWithKebab);
+
+      // Должен использовать 'test-strategy' из конфига, а не 'teststrategy'
+      expect(task['test-strategy']).toBe('unit tests');
+      expect(task.teststrategy).toBeUndefined();
     });
   });
 

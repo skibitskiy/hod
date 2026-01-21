@@ -255,6 +255,20 @@ describe('MarkdownGenerator', () => {
       expect(result).not.toContain('  high  ');
     });
 
+    it('должен капитализировать каждую часть kebab-case ключа', () => {
+      const data: TaskData = {
+        title: 'Test Task',
+        'test-strategy': 'unit tests',
+        'api-endpoint': '/api/v1',
+      };
+      const result = generate('1', data);
+
+      expect(result).toContain('# Test-Strategy');
+      expect(result).toContain('# Api-Endpoint');
+      expect(result).toContain('unit tests');
+      expect(result).toContain('/api/v1');
+    });
+
     it('должен пропускать status из data (системное поле)', () => {
       const data: TaskData = {
         title: 'Test Task',

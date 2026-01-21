@@ -85,12 +85,19 @@ export function generate(id: string, data: TaskData, indexData?: IndexData): str
     // Skip empty values after type validation
     if (value === '' || value.trim() === '') continue;
 
-    // Store with capitalized first letter, rest lowercase (Unicode-aware)
-    const chars = Array.from(key);
-    const firstChar = chars[0];
-    const restChars = chars.slice(1).join('');
+    // Capitalize each segment: "test-strategy" -> "Test-Strategy"
+    // Split by hyphens, capitalize each part, then join back
+    const titleCaseKey = key
+      .split('-')
+      .map((part) => {
+        if (part.length === 0) return '';
+        const chars = Array.from(part);
+        return chars[0].toUpperCase() + chars.slice(1).join('').toLowerCase();
+      })
+      .join('-');
+
     customFields.push({
-      key: firstChar.toUpperCase() + restChars.toLowerCase(),
+      key: titleCaseKey,
       value: value.trim(),
     });
   }

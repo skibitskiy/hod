@@ -234,10 +234,10 @@ function parseDependencies(depsArg?: string): string[] {
 
 /**
  * Converts collected fields to ParsedTask format.
- * Maps markdown keys to parser-compatible format.
+ * Maps markdown keys to parser-compatible format using kebab-case from config.
  * @throws {Error} if custom field value is not a string
  */
-function fieldsToParsedTask(fields: Record<string, unknown>): ParsedTask {
+function fieldsToParsedTask(fields: Record<string, unknown>, config: Config): ParsedTask {
   // Validate standard fields are strings
   const title = fields.Title;
   const description = fields.Description;
@@ -264,16 +264,18 @@ function fieldsToParsedTask(fields: Record<string, unknown>): ParsedTask {
 
   // Add custom fields with type validation (excluding Status - it goes to index only)
   const standardKeys = new Set(['Title', 'Description', 'Status']);
-  for (const [key, value] of Object.entries(fields)) {
-    if (!standardKeys.has(key)) {
+  for (const [markdownKey, value] of Object.entries(fields)) {
+    if (!standardKeys.has(markdownKey)) {
       // Validate that custom fields are strings
       if (typeof value !== 'string') {
         throw new Error(
-          `Невалидное значение для поля '${key}': ожидается строка, получено ${typeof value}`,
+          `Невалидное значение для поля '${markdownKey}': ожидается строка, получено ${typeof value}`,
         );
       }
-      // Convert to lowercase to match parser behavior
-      task[key.toLowerCase()] = value;
+      // Use the CLI name from config (kebab-case) as the key in ParsedTask
+      const fieldConfig = config.fields[markdownKey];
+      const taskKey = fieldConfig?.name || markdownKey.toLowerCase();
+      task[taskKey] = value;
     }
   }
 
@@ -364,7 +366,7 @@ export async function addCommand(options: AddCommandOptions, services: Services)
   const status = withDefaults.Status || 'pending';
 
   // 11. Build ParsedTask (without status and dependencies - they go to index)
-  const parsedTask = fieldsToParsedTask(withDefaults);
+  const parsedTask = fieldsToParsedTask(withDefaults, config);
 
   // 12. Serialize to JSON
   const jsonContent = services.parser.serializeJson(parsedTask);
