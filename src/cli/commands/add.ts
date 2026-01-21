@@ -17,8 +17,35 @@ export interface AddCommandOptions {
 }
 
 /**
+ * Converts kebab-case string to camelCase.
+ * Example: "test-strategy" -> "testStrategy"
+ */
+function kebabToCamel(str: string): string {
+  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+/**
+ * Builds a reverse mapping from CLI arg names (both kebab-case and camelCase) to markdown keys.
+ * This handles commander.js's automatic conversion of --kebab-case to camelCase property names.
+ */
+function buildNameMapping(config: Config): Map<string, string> {
+  const nameToKey = new Map<string, string>();
+  for (const [markdownKey, fieldConfig] of Object.entries(config.fields)) {
+    // Map the original kebab-case name from config
+    nameToKey.set(fieldConfig.name, markdownKey);
+    // Also map the camelCase version (commander.js converts --kebab-case to camelCase)
+    const camelCaseName = kebabToCamel(fieldConfig.name);
+    if (camelCaseName !== fieldConfig.name) {
+      nameToKey.set(camelCaseName, markdownKey);
+    }
+  }
+  return nameToKey;
+}
+
+/**
  * Collects field values from CLI arguments based on config.
  * Maps --field-name (kebab-case) to markdown field via config.fields[key].name
+ * Also handles camelCase property names from commander.js conversion.
  */
 function collectFields(
   args: AddCommandOptions,
@@ -26,11 +53,8 @@ function collectFields(
 ): Record<string, string | undefined> {
   const fields: Record<string, string | undefined> = {};
 
-  // Build reverse mapping: CLI arg name -> Markdown key
-  const nameToKey = new Map<string, string>();
-  for (const [markdownKey, fieldConfig] of Object.entries(config.fields)) {
-    nameToKey.set(fieldConfig.name, markdownKey);
-  }
+  // Build reverse mapping: CLI arg name (both kebab and camel) -> Markdown key
+  const nameToKey = buildNameMapping(config);
 
   // Process all CLI args
   for (const [argName, argValue] of Object.entries(args)) {
@@ -51,15 +75,24 @@ function collectFields(
 /**
  * Validates that all provided field names are known.
  * Throws error with all available fields if unknown field found.
+ * Handles both kebab-case and camelCase names (commander.js converts --kebab-case to camelCase).
  */
 function validateFieldNames(args: AddCommandOptions, config: Config): void {
   const systemFields = ['dependencies', 'parent', '_'];
 
-  // Build set of known field names
+  // Build set of known field names (both kebab-case and camelCase)
   const knownNames = new Set<string>();
   for (const fieldConfig of Object.values(config.fields)) {
     knownNames.add(fieldConfig.name);
+    // Add camelCase version for commander.js conversion
+    const camelCaseName = kebabToCamel(fieldConfig.name);
+    if (camelCaseName !== fieldConfig.name) {
+      knownNames.add(camelCaseName);
+    }
   }
+
+  // Build list of available field names (kebab-case only, for error message)
+  const availableFields = Array.from(Object.values(config.fields).map((f) => f.name)).join(', ');
 
   // Check each arg
   for (const argName of Object.keys(args)) {
@@ -68,7 +101,6 @@ function validateFieldNames(args: AddCommandOptions, config: Config): void {
       continue;
     }
     if (!knownNames.has(argName)) {
-      const availableFields = Array.from(knownNames).join(', ');
       throw new Error(`Неизвестное поле \`${argName}\`. Доступные поля: ${availableFields}`);
     }
   }

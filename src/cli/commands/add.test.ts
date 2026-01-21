@@ -108,6 +108,47 @@ describe('add command - helper functions (unit tests)', () => {
       expect(fields.Title).toBe('Task');
       expect(fields.Description).toBeUndefined();
     });
+
+    it('должен поддерживать kebab-case имена полей (напр. test-strategy)', () => {
+      const configWithKebab: Config = {
+        tasksDir: '/tasks',
+        fields: {
+          Title: { name: 'title', required: true },
+          TestStrategy: { name: 'test-strategy' },
+        },
+      };
+
+      const args: AddCommandOptions = {
+        title: 'Task',
+        'test-strategy': 'unit tests',
+      };
+
+      const fields = collectFields(args, configWithKebab);
+
+      expect(fields.Title).toBe('Task');
+      expect(fields.TestStrategy).toBe('unit tests');
+    });
+
+    it('должен поддерживать camelCase имена полей от commander.js (напр. testStrategy)', () => {
+      const configWithKebab: Config = {
+        tasksDir: '/tasks',
+        fields: {
+          Title: { name: 'title', required: true },
+          TestStrategy: { name: 'test-strategy' },
+        },
+      };
+
+      // Commander.js преобразует --test-strategy в testStrategy
+      const args: AddCommandOptions = {
+        title: 'Task',
+        testStrategy: 'integration tests',
+      };
+
+      const fields = collectFields(args, configWithKebab);
+
+      expect(fields.Title).toBe('Task');
+      expect(fields.TestStrategy).toBe('integration tests');
+    });
   });
 
   describe('validateFieldNames()', () => {
@@ -158,6 +199,60 @@ describe('add command - helper functions (unit tests)', () => {
       };
 
       expect(() => validateFieldNames(args, mockConfig)).toThrow(/Доступные поля:/);
+    });
+
+    it('должен поддерживать kebab-case имена полей (напр. test-strategy)', () => {
+      const configWithKebab: Config = {
+        tasksDir: '/tasks',
+        fields: {
+          Title: { name: 'title', required: true },
+          TestStrategy: { name: 'test-strategy' },
+        },
+      };
+
+      const args: AddCommandOptions = {
+        title: 'Task',
+        'test-strategy': 'unit tests',
+      };
+
+      expect(() => validateFieldNames(args, configWithKebab)).not.toThrow();
+    });
+
+    it('должен поддерживать camelCase имена полей от commander.js (напр. testStrategy)', () => {
+      const configWithKebab: Config = {
+        tasksDir: '/tasks',
+        fields: {
+          Title: { name: 'title', required: true },
+          TestStrategy: { name: 'test-strategy' },
+        },
+      };
+
+      // Commander.js преобразует --test-strategy в testStrategy
+      const args: AddCommandOptions = {
+        title: 'Task',
+        testStrategy: 'integration tests',
+      };
+
+      expect(() => validateFieldNames(args, configWithKebab)).not.toThrow();
+    });
+
+    it('должен показывать ошибку для неизвестного camelCase поля', () => {
+      const configWithKebab: Config = {
+        tasksDir: '/tasks',
+        fields: {
+          Title: { name: 'title', required: true },
+          TestStrategy: { name: 'test-strategy' },
+        },
+      };
+
+      const args: AddCommandOptions = {
+        title: 'Task',
+        unknownField: 'value',
+      };
+
+      expect(() => validateFieldNames(args, configWithKebab)).toThrow(
+        'Неизвестное поле `unknownField`. Доступные поля: title, test-strategy',
+      );
     });
   });
 

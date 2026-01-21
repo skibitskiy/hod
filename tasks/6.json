@@ -1,0 +1,4 @@
+{
+  "title": "Исправить баг",
+  "description": "Имеется конфиг:\n```yml\ntasksDir: ./tasks\nfields:\n  Title:\n    name: title\n    required: true\n  Description:\n    name: description\n  Status:\n    name: status\n    default: pending\n  TestStrategy:\n    name: test-strategy\ndoneStatus: completed\n```\n\nДанная команда не работает:\n> hod update 3 --test-strategy \"Напиши интеграционные тесты с ydb\"\n> Неизвестное поле `testStrategy`. Доступные поля: title, description, status, test-strategy\n\nСделать так, чтоб работала и написать тесты"
+}
