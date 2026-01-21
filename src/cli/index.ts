@@ -10,6 +10,7 @@ import { getCommand, type GetCommandOptions } from './commands/get.js';
 import { migrateCommand, type MigrateCommandOptions } from './commands/migrate.js';
 import { mdCommand, type MdCommandOptions } from './commands/md.js';
 import { nextCommand, type NextCommandOptions } from './commands/next.js';
+import { appendCommand, type AppendCommandOptions } from './commands/append.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 import { ConfigNotFoundError } from '../config/errors.js';
@@ -453,6 +454,52 @@ async function registerNextCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'append' command with dynamic options from config.
+ */
+async function registerAppendCommand(): Promise<void> {
+  let services: Awaited<ReturnType<typeof createServices>>;
+  let config: Config;
+
+  try {
+    services = await createServices();
+    config = await services.config.load();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      // Register a placeholder command that shows the error
+      program
+        .command('append')
+        .description('Добавить данные к полям задачи')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
+
+  const appendCmd = program
+    .command('append <id>')
+    .description('Добавить данные к полям задачи (с разделителем \\n)')
+    .action(async (id: string, options: Omit<AppendCommandOptions, 'id'>) => {
+      try {
+        const updatedId = await appendCommand({ ...options, id }, services);
+        console.log(`✓ Задача ${updatedId} обновлена`);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+
+  // Register dynamic options from config
+  registerConfigOptions(appendCmd, config);
+}
+
+/**
  * Main CLI entry point.
  */
 export async function main(): Promise<void> {
@@ -487,6 +534,9 @@ export async function main(): Promise<void> {
 
   // Register next command
   await registerNextCommand();
+
+  // Register append command
+  await registerAppendCommand();
 
   await program.parseAsync(process.argv);
 }
