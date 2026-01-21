@@ -392,13 +392,13 @@ async function registerMigrateCommand(): Promise<void> {
   }
 
   program
-    .command('migrate <file>')
-    .description('Конвертировать .md файл в .json формат')
+    .command('migrate <id>')
+    .description('Конвертировать задачу из .md в .json формат')
     .option('-o, --output <path>', 'Путь для сохранения JSON файла')
     .option('-s, --stdout', 'Вывести JSON в stdout вместо записи в файл')
-    .action(async (file: string, options: MigrateCommandOptions) => {
+    .action(async (id: string, options: MigrateCommandOptions) => {
       try {
-        await migrateCommand(file, options, services);
+        await migrateCommand(id, options, services);
       } catch (error) {
         if (error instanceof Error) {
           console.error(error.message);

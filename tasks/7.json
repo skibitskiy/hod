@@ -1,0 +1,4 @@
+{
+  "title": "Исправить баг команды migrate",
+  "description": "migrate ожидает путь до файла, а должна принимать id задачи \"hod migrate 6 => Файл должен иметь расширение .md: 6\", \"hod migrate ./tasks/6.md => ✓ Файл мигрирован: /Users/moskibitskiy/pets/hod/tasks/6.md -> /Users/moskibitskiy/pets/hod/tasks/6.json. Исправь и почини тесты"
+}

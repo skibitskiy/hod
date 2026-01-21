@@ -1,7 +1,8 @@
 import type { Services } from '../services.js';
 import { readFile, writeFile, mkdir, rename, unlink } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import type { FileIO } from './migrate-types.js';
+import { validateCliId } from '../../utils/validation.js';
 
 // Default fs implementation using real Node.js fs
 const defaultFs: FileIO = {
@@ -36,43 +37,81 @@ function isJsonContent(content: string): boolean {
 /**
  * Main implementation of the migrate command.
  * Converts a .md file to .json format.
+ * Accepts either a task ID (e.g., "6") or a file path (e.g., "./tasks/6.md").
  *
- * @param filePath - Path to the .md file to migrate
+ * @param input - Task ID or path to the .md file to migrate
  * @param options - Command options
  * @param services - DI container
  * @param fsModule - Optional fs module for testing (defaults to real fs)
  */
 export async function migrateCommand(
-  filePath: string,
+  input: string,
   options: MigrateCommandOptions,
   services: Services,
   fsModule: FileIO = defaultFs,
 ): Promise<void> {
-  // 1. Resolve file path
-  const resolvedPath = resolve(filePath);
-
-  // 2. Validate file extension (should be .md)
-  if (!filePath.endsWith('.md')) {
-    throw new Error(`Файл должен иметь расширение .md: ${filePath}`);
-  }
-
-  // 3. Check if file exists and read content
   let content: string;
-  try {
-    content = await fsModule.readFile(resolvedPath, { encoding: 'utf-8' });
-  } catch (error) {
-    if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new Error(`Файл не найден: ${filePath}`);
+  let resolvedPath: string;
+  let sourceDescription: string;
+
+  // 1. Determine if input is a task ID or file path
+  // Check if input looks like a task ID (starts with digit and matches ID pattern)
+  // We need to check this before file path handling to give proper error messages
+  const looksLikeTaskId = /^\d/.test(input) && !input.includes('/') && !input.includes('\\');
+
+  if (looksLikeTaskId) {
+    // Input looks like a task ID - validate it properly (will throw if invalid)
+    try {
+      validateCliId(input);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Невалидный формат ID');
     }
-    throw error;
+
+    // Valid task ID - read from storage
+    try {
+      content = await services.storage.read(input);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('не найден')) {
+        throw new Error(`Задача с ID "${input}" не найдена`);
+      }
+      throw error;
+    }
+
+    // Get tasksDir from config for resolving output path
+    const config = await services.config.load();
+    resolvedPath = join(config.tasksDir, `${input}.md`);
+    sourceDescription = `Задача ${input}`;
+  } else {
+    // Input is a file path
+    resolvedPath = resolve(input);
+
+    // Validate file extension (should be .md)
+    if (!input.endsWith('.md')) {
+      throw new Error(`Файл должен иметь расширение .md: ${input}`);
+    }
+
+    // Check if file exists and read content
+    try {
+      content = await fsModule.readFile(resolvedPath, { encoding: 'utf-8' });
+    } catch (error) {
+      if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Файл не найден: ${input}`);
+      }
+      throw error;
+    }
+
+    sourceDescription = resolvedPath;
   }
 
-  // 4. Check if already JSON
+  // 2. Check if already JSON
   if (isJsonContent(content)) {
-    throw new Error(`Файл уже в формате JSON: ${filePath}`);
+    throw new Error(`Файл уже в формате JSON: ${sourceDescription}`);
   }
 
-  // 5. Parse markdown content
+  // 3. Parse markdown content
   let parsed;
   try {
     parsed = services.parser.parse(content);
@@ -83,7 +122,7 @@ export async function migrateCommand(
     throw error;
   }
 
-  // 6. Serialize to JSON
+  // 4. Serialize to JSON
   let jsonContent: string;
   try {
     jsonContent = services.parser.serializeJson(parsed);
@@ -94,7 +133,7 @@ export async function migrateCommand(
     throw error;
   }
 
-  // 7. Output to stdout or file
+  // 5. Output to stdout or file
   if (options.stdout) {
     console.log(jsonContent);
   } else {

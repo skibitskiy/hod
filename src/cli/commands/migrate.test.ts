@@ -359,4 +359,112 @@ describe('migrate command', () => {
       expect(vol.existsSync(tempPath)).toBe(false);
     });
   });
+
+  describe('ввод по ID задачи', () => {
+    it('должен принимать ID задачи вместо пути к файлу', async () => {
+      const options: MigrateCommandOptions = {};
+      const taskId = '6';
+      const mdContent = '# Title\nTest Task\n# Description\nTest Description';
+
+      // Mock storage.read to return markdown content
+      vi.mocked(services.storage.read).mockResolvedValue(mdContent);
+
+      await migrateCommand(taskId, options, services, memfsIO);
+
+      // Verify storage.read was called with the task ID
+      expect(services.storage.read).toHaveBeenCalledWith(taskId);
+
+      // Verify config was loaded to get tasksDir
+      expect(services.config.load).toHaveBeenCalled();
+
+      // The output should be in /tasks/6.json (from config.tasksDir)
+      const jsonPath = '/tasks/6.json';
+      const exists = vol.existsSync(jsonPath);
+      expect(exists).toBe(true);
+
+      const jsonContent = vol.readFileSync(jsonPath, 'utf-8') as string;
+      const parsed = JSON.parse(jsonContent);
+
+      expect(parsed.title).toBe('Test Task');
+      expect(parsed.description).toBe('Test Description');
+      expect(logs.join('\n')).toContain('✓ Файл мигрирован');
+    });
+
+    it('должен выбрасывать ошибку если задача с ID не найдена', async () => {
+      const options: MigrateCommandOptions = {};
+      const taskId = '999';
+
+      // Mock storage.read to throw "не найден" error
+      vi.mocked(services.storage.read).mockRejectedValue(new Error('Задача не найдена: 999'));
+
+      await expect(migrateCommand(taskId, options, services, memfsIO)).rejects.toThrow(
+        'Задача с ID "999" не найдена',
+      );
+    });
+
+    it('должен выбрасывать ошибку если ID задачи имеет неверный формат (слишком длинный)', async () => {
+      const options: MigrateCommandOptions = {};
+      // Create an ID that looks like a task ID (digits.dots) but is too long (> 50 chars)
+      const invalidId = '1.' + '1.'.repeat(25); // Creates a valid pattern but too long
+
+      await expect(migrateCommand(invalidId, options, services, memfsIO)).rejects.toThrow(
+        'ID задачи превышает максимальную длину',
+      );
+    });
+
+    it('должен работать с подзадачами по ID', async () => {
+      const options: MigrateCommandOptions = {};
+      const taskId = '1.2';
+      const mdContent = '# Title\nSubtask';
+
+      // Mock storage.read to return markdown content
+      vi.mocked(services.storage.read).mockResolvedValue(mdContent);
+
+      await migrateCommand(taskId, options, services, memfsIO);
+
+      // Verify storage.read was called with the task ID
+      expect(services.storage.read).toHaveBeenCalledWith(taskId);
+
+      // The output should be in /tasks/1.2.json
+      const jsonPath = '/tasks/1.2.json';
+      const exists = vol.existsSync(jsonPath);
+      expect(exists).toBe(true);
+    });
+
+    it('должен выбрасывать ошибку если контент задачи уже в JSON', async () => {
+      const options: MigrateCommandOptions = {};
+      const taskId = '6';
+      const jsonContent = '{"title":"Test"}';
+
+      // Mock storage.read to return JSON content
+      vi.mocked(services.storage.read).mockResolvedValue(jsonContent);
+
+      await expect(migrateCommand(taskId, options, services, memfsIO)).rejects.toThrow(
+        'Файл уже в формате JSON',
+      );
+    });
+
+    it('должен выводить в stdout при использовании ID задачи с опцией --stdout', async () => {
+      const options: MigrateCommandOptions = { stdout: true };
+      const taskId = '6';
+      const mdContent = '# Title\nTest Task\n# Priority\nhigh';
+
+      // Mock storage.read to return markdown content
+      vi.mocked(services.storage.read).mockResolvedValue(mdContent);
+
+      await migrateCommand(taskId, options, services, memfsIO);
+
+      expect(logs.length).toBe(1);
+      const output = logs[0];
+      expect(() => JSON.parse(output)).not.toThrow();
+
+      const parsed = JSON.parse(output);
+      expect(parsed.title).toBe('Test Task');
+      expect(parsed.priority).toBe('high');
+
+      // No file should be created when using stdout
+      const jsonPath = '/tasks/6.json';
+      expect(vol.existsSync(jsonPath)).toBe(false);
+    });
+  });
 });
