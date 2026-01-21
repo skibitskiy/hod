@@ -4,3 +4,5 @@ dist
 .DS_Store
 
 test
+
+.claude/ralph-loop.local.md 
