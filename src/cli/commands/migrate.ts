@@ -16,6 +16,7 @@ const defaultFs: FileIO = {
 export interface MigrateCommandOptions {
   output?: string;
   stdout?: boolean;
+  force?: boolean;
 }
 
 /**
@@ -107,30 +108,37 @@ export async function migrateCommand(
   }
 
   // 2. Check if already JSON
-  if (isJsonContent(content)) {
+  const isJson = isJsonContent(content);
+  if (isJson && !options.force) {
     throw new Error(`Файл уже в формате JSON: ${sourceDescription}`);
   }
 
-  // 3. Parse markdown content
-  let parsed;
-  try {
-    parsed = services.parser.parse(content);
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Ошибка парсинга markdown: ${error.message}`);
-    }
-    throw error;
-  }
-
-  // 4. Serialize to JSON
+  // 3. Prepare output content
   let jsonContent: string;
-  try {
-    jsonContent = services.parser.serializeJson(parsed);
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Ошибка сериализации в JSON: ${error.message}`);
+  if (isJson && options.force) {
+    // When force is set and content is JSON, copy as-is
+    jsonContent = content;
+  } else {
+    // Parse markdown content
+    let parsed;
+    try {
+      parsed = services.parser.parse(content);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Ошибка парсинга markdown: ${error.message}`);
+      }
+      throw error;
     }
-    throw error;
+
+    // Serialize to JSON
+    try {
+      jsonContent = services.parser.serializeJson(parsed);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Ошибка сериализации в JSON: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   // 5. Output to stdout or file

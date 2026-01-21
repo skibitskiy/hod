@@ -396,6 +396,7 @@ async function registerMigrateCommand(): Promise<void> {
     .description('Конвертировать задачу из .md в .json формат')
     .option('-o, --output <path>', 'Путь для сохранения JSON файла')
     .option('-s, --stdout', 'Вывести JSON в stdout вместо записи в файл')
+    .option('-f, --force', 'Перезаписать если файл уже в формате JSON')
     .action(async (id: string, options: MigrateCommandOptions) => {
       try {
         await migrateCommand(id, options, services);

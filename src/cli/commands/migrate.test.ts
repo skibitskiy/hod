@@ -444,6 +444,61 @@ describe('migrate command', () => {
       );
     });
 
+    it('с флагом --force должен перезаписывать JSON файл', async () => {
+      const options: MigrateCommandOptions = { force: true };
+      const taskId = '6';
+      const jsonContent = '{"title":"Old Title"}';
+
+      // Mock storage.read to return JSON content
+      vi.mocked(services.storage.read).mockResolvedValue(jsonContent);
+
+      await migrateCommand(taskId, options, services, memfsIO);
+
+      // Verify the file was created/overwritten
+      const jsonPath = '/tasks/6.json';
+      const exists = vol.existsSync(jsonPath);
+      expect(exists).toBe(true);
+
+      const resultContent = vol.readFileSync(jsonPath, 'utf-8') as string;
+      const parsed = JSON.parse(resultContent);
+      expect(parsed.title).toBe('Old Title');
+      expect(logs.join('\n')).toContain('✓ Файл мигрирован');
+    });
+
+    it('с флагом --force должен перезаписывать JSON файл из пути', async () => {
+      const options: MigrateCommandOptions = { force: true };
+      const mdPath = '/task.md';
+      const jsonContent = '{"title":"Already JSON"}';
+
+      vol.writeFileSync(mdPath, jsonContent);
+
+      await migrateCommand(mdPath, options, services, memfsIO);
+
+      const jsonPath = '/task.json';
+      const exists = vol.existsSync(jsonPath);
+      expect(exists).toBe(true);
+
+      const resultContent = vol.readFileSync(jsonPath, 'utf-8') as string;
+      const parsed = JSON.parse(resultContent);
+      expect(parsed.title).toBe('Already JSON');
+    });
+
+    it('с флагом --force и --stdout должен выводить JSON даже если контент уже JSON', async () => {
+      const options: MigrateCommandOptions = { force: true, stdout: true };
+      const taskId = '6';
+      const jsonContent = '{"title":"Test","description":"Desc"}';
+
+      vi.mocked(services.storage.read).mockResolvedValue(jsonContent);
+
+      await migrateCommand(taskId, options, services, memfsIO);
+
+      expect(logs.length).toBe(1);
+      const output = logs[0];
+      const parsed = JSON.parse(output);
+      expect(parsed.title).toBe('Test');
+      expect(parsed.description).toBe('Desc');
+    });
+
     it('должен выводить в stdout при использовании ID задачи с опцией --stdout', async () => {
       const options: MigrateCommandOptions = { stdout: true };
       const taskId = '6';
