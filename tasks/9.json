@@ -1,0 +1,4 @@
+{
+  "title": "bug: --test-strategy пропадает дефис при создании задачи",
+  "description": "hod add --title pops --test-strategy 123 создает поле teststrategy вместо TestStrategy. Проблема в add.ts:276 в функции fieldsToParsedTask - используется key.toLowerCase(), что конвертирует TestStrategy в teststrategy. Нужно сохранить оригинальный ключ markdown без изменений. Проверить как после этого работает md и migrate"
+}
