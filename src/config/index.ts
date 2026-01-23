@@ -4,6 +4,7 @@ import { parse, stringify } from 'yaml';
 import { z } from 'zod';
 import type { Config, ConfigService, FieldConfig } from './types.js';
 import { ConfigLoadError, ConfigNotFoundError, ConfigValidationError } from './errors.js';
+import { DEFAULT_DONE_STATUS } from './types.js';
 
 const MARKDOWN_KEY_REGEX = /^[A-Za-z0-9_-]{1,50}$/;
 const NAME_REGEX = /^[a-z0-9-]{1,50}$/;
@@ -48,9 +49,23 @@ const configSchema = z
         (fields) => Object.keys(fields).length >= 1,
         'fields must contain at least one field',
       ),
-    doneStatus: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    doneStatus: z.string().min(1).optional(),
+    doneStatuses: z.array(z.string().min(1)).min(1).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (config) => {
+      // If both doneStatus and doneStatuses are provided, doneStatus must be in doneStatuses
+      if (config.doneStatus && config.doneStatuses) {
+        return config.doneStatuses.includes(config.doneStatus);
+      }
+      return true;
+    },
+    {
+      message: 'doneStatus must be included in doneStatuses array when both are provided',
+      path: ['doneStatus'],
+    },
+  );
 
 export class ConfigServiceImpl implements ConfigService {
   async createDefault(
@@ -84,7 +99,8 @@ export class ConfigServiceImpl implements ConfigService {
         Description: { name: 'description' },
         Status: { name: 'status', default: 'pending' },
       },
-      doneStatus: 'completed',
+      doneStatus: DEFAULT_DONE_STATUS,
+      doneStatuses: [DEFAULT_DONE_STATUS],
     };
 
     await writeFile(configPath, stringify(defaultConfig), 'utf-8');

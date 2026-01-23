@@ -8,4 +8,5 @@ fields:
   Status:
     name: status
     default: pending
-doneStatus: ["done"]
+doneStatus: "completed"
+doneStatuses: ["completed", "done"]

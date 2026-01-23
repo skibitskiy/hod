@@ -3,6 +3,7 @@ import type { Services } from '../services.js';
 import type { Config } from '../../config/types.js';
 import { StorageAccessError } from '../../storage/errors.js';
 import { sortIds } from '../../utils/sort.js';
+import { DEFAULT_DONE_STATUS } from '../../config/types.js';
 
 export interface NextCommandOptions {
   [key: string]: string | boolean | undefined;
@@ -14,12 +15,14 @@ export interface NextCommandOptions {
  * Main implementation of the next command.
  */
 export async function nextCommand(options: NextCommandOptions, services: Services): Promise<void> {
-  // 1. Load config to get doneStatus
+  // 1. Load config to get doneStatuses
+  // Fallback: doneStatuses -> [doneStatus] -> [DEFAULT_DONE_STATUS]
   const config = await services.config.load();
-  const doneStatus = config.doneStatus || 'completed';
+  const doneStatuses =
+    config.doneStatuses ?? (config.doneStatus ? [config.doneStatus] : [DEFAULT_DONE_STATUS]);
 
   // 2. Get next task IDs from index service
-  const nextIds = await services.index.getNextTasks(doneStatus);
+  const nextIds = await services.index.getNextTasks(doneStatuses);
 
   if (nextIds.length === 0) {
     console.log('Нет задач готовых к выполнению');

@@ -11,6 +11,7 @@ import { migrateCommand, type MigrateCommandOptions } from './commands/migrate.j
 import { mdCommand, type MdCommandOptions } from './commands/md.js';
 import { nextCommand, type NextCommandOptions } from './commands/next.js';
 import { appendCommand, type AppendCommandOptions } from './commands/append.js';
+import { doneCommand } from './commands/done.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 import { ConfigNotFoundError } from '../config/errors.js';
@@ -199,6 +200,53 @@ async function registerDeleteCommand(): Promise<void> {
       try {
         const deletedId = await deleteCommand({ ...options, id }, services);
         console.log(`✓ Задача ${deletedId} удалена`);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Registers the 'done' command.
+ */
+async function registerDoneCommand(): Promise<void> {
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('done')
+        .description('Отметить задачу как выполненную')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
+
+  program
+    .command('done <id>')
+    .description('Отметить задачу как выполненную')
+    .action(async (id: string) => {
+      try {
+        const result = await doneCommand({ id }, services);
+
+        if (result.wasAlreadyDone) {
+          console.warn(
+            `Предупреждение: задача ${result.id} уже имеет статус "${result.doneStatus}"`,
+          );
+        }
+
+        console.log(`✓ Задача ${result.id} выполнена`);
       } catch (error) {
         if (error instanceof Error) {
           console.error(error.message);
@@ -516,6 +564,9 @@ export async function main(): Promise<void> {
 
   // Register delete command
   await registerDeleteCommand();
+
+  // Register done command
+  await registerDoneCommand();
 
   // Register move command
   await registerMoveCommand();

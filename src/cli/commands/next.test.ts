@@ -11,6 +11,7 @@ import { StorageAccessError } from '../../storage/errors.js';
 const mockConfig: Config = {
   tasksDir: '/tasks',
   doneStatus: 'completed',
+  doneStatuses: ['completed'],
   fields: {
     Title: { name: 'title', required: true },
     Description: { name: 'description' },
@@ -64,8 +65,8 @@ describe('next command', () => {
       const options: NextCommandOptions = {};
       await nextCommand(options, services);
 
-      // getNextTasks вызван с doneStatus из конфига
-      expect(services.index.getNextTasks).toHaveBeenCalledWith('completed');
+      // getNextTasks вызван с doneStatuses из конфига
+      expect(services.index.getNextTasks).toHaveBeenCalledWith(['completed']);
 
       // Показана только первая задача
       expect(logs.join('\n')).toContain('First Task');
@@ -96,6 +97,7 @@ describe('next command', () => {
       const customConfig: Config = {
         ...mockConfig,
         doneStatus: 'done',
+        doneStatuses: undefined, // Override to test doneStatus fallback
       };
       const services = createMockServices([], {}, customConfig);
       (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue([]);
@@ -103,13 +105,14 @@ describe('next command', () => {
       const options: NextCommandOptions = {};
       await nextCommand(options, services);
 
-      expect(services.index.getNextTasks).toHaveBeenCalledWith('done');
+      // doneStatus is wrapped in array when passed to getNextTasks
+      expect(services.index.getNextTasks).toHaveBeenCalledWith(['done']);
     });
 
-    it('должен использовать doneStatus как массив из конфига', async () => {
+    it('должен использовать doneStatuses из конфига', async () => {
       const customConfig: Config = {
         ...mockConfig,
-        doneStatus: ['done', 'completed', 'closed'],
+        doneStatuses: ['done', 'completed', 'closed'],
       };
       const services = createMockServices([], {}, customConfig);
       (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue([]);
@@ -131,7 +134,8 @@ describe('next command', () => {
       const options: NextCommandOptions = {};
       await nextCommand(options, services);
 
-      expect(services.index.getNextTasks).toHaveBeenCalledWith('completed');
+      // Default is wrapped in array when passed to getNextTasks
+      expect(services.index.getNextTasks).toHaveBeenCalledWith(['completed']);
     });
   });
 

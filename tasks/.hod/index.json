@@ -1,17 +1,17 @@
 {
   "1": {
-    "dependencies": [],
-    "status": "done"
+    "status": "completed",
+    "dependencies": []
   },
   "2": {
+    "status": "completed",
     "dependencies": [
       "3"
-    ],
-    "status": "pending"
+    ]
   },
   "3": {
-    "dependencies": [],
-    "status": "done"
+    "status": "completed",
+    "dependencies": []
   },
   "4": {
     "dependencies": [],
@@ -30,7 +30,7 @@
     "dependencies": []
   },
   "8": {
-    "status": "pending",
+    "status": "completed",
     "dependencies": []
   },
   "9": {
@@ -38,7 +38,7 @@
     "dependencies": []
   },
   "10": {
-    "status": "done",
+    "status": "completed",
     "dependencies": []
   },
   "4.1": {
