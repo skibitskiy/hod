@@ -297,7 +297,8 @@ describe('IndexService', () => {
 
       const result = await service.getNextTasks();
 
-      expect(result).toEqual(['1', '1.1', '1.2', '1.10', '2']);
+      // С новой логикой: задача 1 исключается (есть pending подзадачи 1.1, 1.2, 1.10)
+      expect(result).toEqual(['1.1', '1.2', '1.10', '2']);
     });
 
     it('должен возвращать пустой массив если индекс пустой', async () => {
@@ -366,6 +367,164 @@ describe('IndexService', () => {
 
       // Задача 2 готова: зависимость 1 имеет статус 'done' (из массива)
       expect(result).toEqual(['2', '5']);
+    });
+
+    describe('фильтрация подзадач', () => {
+      it('должен возвращать только самые глубокие pending подзадачи', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём структуру:
+        // 1 (pending)
+        // ├── 1.1 (completed)
+        // └── 1.2 (pending) <- должно вернуть это
+        await service.update('1', { status: 'pending', dependencies: [] });
+        await service.update('1.1', { status: 'completed', dependencies: [] });
+        await service.update('1.2', { status: 'pending', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть только 1.2, не 1 (потому что у 1 есть pending подзадача 1.2)
+        expect(result).toEqual(['1.2']);
+      });
+
+      it('должен возвращать несколько глубоких подзадач из разных веток', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём структуру:
+        // 1 (pending)
+        // ├── 1.1 (pending)
+        // │   └── 1.1.1 (pending) <- должно вернуть
+        // └── 1.2 (pending) <- должно вернуть
+        await service.update('1', { status: 'pending', dependencies: [] });
+        await service.update('1.1', { status: 'pending', dependencies: [] });
+        await service.update('1.1.1', { status: 'pending', dependencies: [] });
+        await service.update('1.2', { status: 'pending', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть 1.1.1 и 1.2 (самые глубокие pending задачи)
+        expect(result).toEqual(['1.1.1', '1.2']);
+      });
+
+      it('должен возвращать родительскую задачу если все подзадачи completed', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём структуру:
+        // 1 (pending) <- должно вернуть это, потому что все подзадачи completed
+        // ├── 1.1 (completed)
+        // └── 1.2 (completed)
+        await service.update('1', { status: 'pending', dependencies: [] });
+        await service.update('1.1', { status: 'completed', dependencies: [] });
+        await service.update('1.2', { status: 'completed', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть 1 (родительскую задачу)
+        expect(result).toEqual(['1']);
+      });
+
+      it('должен возвращать подзадачи даже если родитель completed', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём структуру:
+        // 1 (completed)
+        // ├── 1.1 (completed)
+        // └── 1.2 (pending) <- должно вернуть это
+        await service.update('1', { status: 'completed', dependencies: [] });
+        await service.update('1.1', { status: 'completed', dependencies: [] });
+        await service.update('1.2', { status: 'pending', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть 1.2 (pending подзадача)
+        expect(result).toEqual(['1.2']);
+      });
+
+      it('должен корректно работать с задачами без подзадач', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём простые задачи без подзадач
+        await service.update('1', { status: 'pending', dependencies: [] });
+        await service.update('2', { status: 'pending', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть обе задачи (нет подзадач)
+        expect(result).toEqual(['1', '2']);
+      });
+
+      it('должен фильтровать подзадачи с учётом зависимостей', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём структуру:
+        // 1 (completed)
+        // ├── 1.1 (pending, зависит от 2)
+        // └── 1.2 (pending) <- должно вернуть это
+        // 2 (pending) <- должно вернуть это
+        await service.update('1', { status: 'completed', dependencies: [] });
+        await service.update('1.1', { status: 'pending', dependencies: ['2'] });
+        await service.update('1.2', { status: 'pending', dependencies: [] });
+        await service.update('2', { status: 'pending', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть 1.2 и 2 (1.1 не готова, зависит от 2)
+        expect(result).toEqual(['1.2', '2']);
+      });
+
+      it('должен не включать задачи с completed подзадачами в глубине', async () => {
+        // Очищаем старый индекс
+        await service.remove('1');
+        await service.remove('2');
+        await service.remove('3');
+        await service.remove('4');
+        await service.remove('5');
+
+        // Создаём структуру:
+        // 1 (pending)
+        // ├── 1.1 (pending)
+        // │   └── 1.1.1 (completed)
+        // └── 1.2 (pending) <- должно вернуть это
+        await service.update('1', { status: 'pending', dependencies: [] });
+        await service.update('1.1', { status: 'pending', dependencies: [] });
+        await service.update('1.1.1', { status: 'completed', dependencies: [] });
+        await service.update('1.2', { status: 'pending', dependencies: [] });
+
+        const result = await service.getNextTasks();
+
+        // Должен вернуть 1.1 и 1.2 (1.1.1 completed, но 1.1 pending)
+        expect(result).toEqual(['1.1', '1.2']);
+      });
     });
   });
 

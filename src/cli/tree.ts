@@ -103,7 +103,7 @@ export function buildTree(
  * @param _isLast - Whether current node is the last sibling (unused)
  * @returns Formatted tree string
  */
-export function formatTree(nodes: TreeNode[], prefix = '', _isLast = true): string {
+export function formatTree(nodes: TreeNode[], prefix = ''): string {
   const lines: string[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
@@ -121,7 +121,7 @@ export function formatTree(nodes: TreeNode[], prefix = '', _isLast = true): stri
 
     // Recursively format children
     if (node.children.length > 0) {
-      const childrenStr = formatTree(node.children, childPrefix, isLastChild);
+      const childrenStr = formatTree(node.children, childPrefix);
       if (childrenStr) {
         lines.push(childrenStr);
       }

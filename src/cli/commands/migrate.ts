@@ -53,7 +53,6 @@ export async function migrateCommand(
 ): Promise<void> {
   let content: string;
   let resolvedPath: string;
-  let sourceDescription: string;
 
   // 1. Determine if input is a task ID or file path
   // Check if input looks like a task ID (starts with digit and matches ID pattern)
@@ -84,7 +83,6 @@ export async function migrateCommand(
     // Get tasksDir from config for resolving output path
     const config = await services.config.load();
     resolvedPath = join(config.tasksDir, `${input}.md`);
-    sourceDescription = `Задача ${input}`;
   } else {
     // Input is a file path
     resolvedPath = resolve(input);
@@ -103,20 +101,15 @@ export async function migrateCommand(
       }
       throw error;
     }
-
-    sourceDescription = resolvedPath;
   }
 
-  // 2. Check if already JSON
+  // 2. Check if content is JSON (for informational purposes, no error)
   const isJson = isJsonContent(content);
-  if (isJson && !options.force) {
-    throw new Error(`Файл уже в формате JSON: ${sourceDescription}`);
-  }
 
   // 3. Prepare output content
   let jsonContent: string;
-  if (isJson && options.force) {
-    // When force is set and content is JSON, copy as-is
+  if (isJson) {
+    // Content is already JSON - copy as-is (overwrite by default)
     jsonContent = content;
   } else {
     // Parse markdown content

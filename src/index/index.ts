@@ -360,9 +360,35 @@ class IndexServiceImpl implements IndexService {
       }
     }
 
+    // Фильтруем задачи: оставляем только те, у которых нет pending подзадач
+    const deepestTasks = filterDeepestTasks(readyTasks);
+
     // Сортируем по ID
-    return sortIds(readyTasks);
+    return sortIds(deepestTasks);
   }
+}
+
+/**
+ * Фильтрует список задач, оставляя только самые глубокие (без pending подзадач).
+ * Если у задачи есть pending подзадачи, она исключается из списка.
+ */
+function filterDeepestTasks(taskIds: string[]): string[] {
+  const result: string[] = [];
+
+  for (const taskId of taskIds) {
+    // Проверяем, есть ли у этой задачи pending подзадачи
+    const hasPendingSubtask = taskIds.some((otherId) => {
+      // otherId должен начинаться с taskId + '.' (прямая подзадача или глубже)
+      return otherId.startsWith(taskId + '.');
+    });
+
+    // Если нет pending подзадач, добавляем в результат
+    if (!hasPendingSubtask) {
+      result.push(taskId);
+    }
+  }
+
+  return result;
 }
 
 /**

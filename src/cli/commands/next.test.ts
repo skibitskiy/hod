@@ -291,4 +291,100 @@ describe('next command', () => {
       exitSpy.mockRestore();
     });
   });
+
+  describe('фильтрация подзадач', () => {
+    it('должен возвращать только самые глубокие pending подзадачи', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nParent Task' },
+        { id: '1.1', content: '# Title\nSubtask 1.1 (completed)' },
+        { id: '1.2', content: '# Title\nSubtask 1.2 (pending)' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '1.1': { status: 'completed', dependencies: [] },
+        '1.2': { status: 'pending', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1.2']);
+
+      const options: NextCommandOptions = {};
+      await nextCommand(options, services);
+
+      // Должен показать только 1.2, не 1
+      expect(logs.join('\n')).toContain('1.2');
+      expect(logs.join('\n')).not.toContain('Parent Task');
+      expect(logs.join('\n')).toContain('Subtask 1.2');
+    });
+
+    it('должен возвращать несколько глубоких подзадач из разных веток', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nParent Task' },
+        { id: '1.1', content: '# Title\nSubtask 1.1' },
+        { id: '1.1.1', content: '# Title\nDeep Subtask' },
+        { id: '1.2', content: '# Title\nAnother Subtask' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '1.1': { status: 'pending', dependencies: [] },
+        '1.1.1': { status: 'pending', dependencies: [] },
+        '1.2': { status: 'pending', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1.1.1', '1.2']);
+
+      const options: NextCommandOptions = { all: true };
+      await nextCommand(options, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('1.1.1');
+      expect(output).toContain('Deep Subtask');
+      expect(output).toContain('1.2');
+      expect(output).toContain('Another Subtask');
+      expect(output).not.toContain('Parent Task');
+    });
+
+    it('должен возвращать родительскую задачу если все подзадачи completed', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nParent Task' },
+        { id: '1.1', content: '# Title\nCompleted Subtask' },
+        { id: '1.2', content: '# Title\nAnother Completed' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '1.1': { status: 'completed', dependencies: [] },
+        '1.2': { status: 'completed', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      const options: NextCommandOptions = {};
+      await nextCommand(options, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('1');
+      expect(output).toContain('Parent Task');
+    });
+
+    it('должен работать с --json для подзадач', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nParent' },
+        { id: '1.2', content: '# Title\nChild' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '1.2': { status: 'pending', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1.2']);
+
+      const options: NextCommandOptions = { json: true };
+      await nextCommand(options, services);
+
+      const parsed = JSON.parse(logs.join('\n'));
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0]).toHaveProperty('id', '1.2');
+      expect(parsed[0]).toHaveProperty('title', 'Child');
+    });
+  });
 });

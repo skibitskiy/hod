@@ -97,15 +97,33 @@ describe('migrate command', () => {
       );
     });
 
-    it('должен выбрасывать ошибку если файл уже в формате JSON', async () => {
+    it('должен выбрасывать ошибку если файл не имеет расширение .md (даже если JSON)', async () => {
       const options: MigrateCommandOptions = {};
 
-      const jsonPath = '/task.json';
-      vol.writeFileSync(jsonPath, '{"title":"Test"}');
+      const txtPath = '/task.txt';
+      vol.writeFileSync(txtPath, '{"title":"Test"}');
 
-      await expect(migrateCommand(jsonPath, options, services, memfsIO)).rejects.toThrow(
+      await expect(migrateCommand(txtPath, options, services, memfsIO)).rejects.toThrow(
         'Файл должен иметь расширение .md',
       );
+    });
+
+    it('должен перезаписывать JSON файл по умолчанию (контент уже JSON)', async () => {
+      const options: MigrateCommandOptions = {};
+
+      const mdPath = '/task.md';
+      vol.writeFileSync(mdPath, '{"title":"Already JSON"}');
+
+      await migrateCommand(mdPath, options, services, memfsIO);
+
+      const jsonPath = '/task.json';
+      const exists = vol.existsSync(jsonPath);
+      expect(exists).toBe(true);
+
+      const jsonContent = vol.readFileSync(jsonPath, 'utf-8') as string;
+      const parsed = JSON.parse(jsonContent);
+      expect(parsed.title).toBe('Already JSON');
+      expect(logs.join('\n')).toContain('✓ Файл мигрирован');
     });
 
     it('должен конвертировать markdown в JSON', async () => {
@@ -431,17 +449,25 @@ describe('migrate command', () => {
       expect(exists).toBe(true);
     });
 
-    it('должен выбрасывать ошибку если контент задачи уже в JSON', async () => {
+    it('должен перезаписывать JSON файл по умолчанию когда контент задачи уже JSON', async () => {
       const options: MigrateCommandOptions = {};
       const taskId = '6';
-      const jsonContent = '{"title":"Test"}';
+      const jsonContent = '{"title":"Already JSON"}';
 
       // Mock storage.read to return JSON content
       vi.mocked(services.storage.read).mockResolvedValue(jsonContent);
 
-      await expect(migrateCommand(taskId, options, services, memfsIO)).rejects.toThrow(
-        'Файл уже в формате JSON',
-      );
+      await migrateCommand(taskId, options, services, memfsIO);
+
+      // Verify the file was created/overwritten
+      const jsonPath = '/tasks/6.json';
+      const exists = vol.existsSync(jsonPath);
+      expect(exists).toBe(true);
+
+      const resultContent = vol.readFileSync(jsonPath, 'utf-8') as string;
+      const parsed = JSON.parse(resultContent);
+      expect(parsed.title).toBe('Already JSON');
+      expect(logs.join('\n')).toContain('✓ Файл мигрирован');
     });
 
     it('с флагом --force должен перезаписывать JSON файл', async () => {
