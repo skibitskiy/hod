@@ -55,7 +55,7 @@ src/
 │   ├── index.ts      # Commander entry point, динамические опции
 │   ├── services.ts   # createServices() — DI контейнер
 │   ├── tree.ts       # renderTree() для --tree вывода
-│   ├── commands/     # Отдельные команды (add, list, update, delete, move, init, get)
+│   ├── commands/     # Отдельные команды (add, list, update, delete, move, init, get, done, next, append, migrate, md, dependency)
 │   └── utils/
 │       └── subtasks.ts # generateSubtaskId(), findMainParent()
 └── types.ts          # TaskData интерфейс
@@ -193,19 +193,27 @@ function generate(id: string, data: TaskData, indexData?: IndexData): string;
 ## CLI команды
 
 ```bash
-hod init [--dir ./tasks]                    # Инициализация проекта
-hod add --title "Задача" [options]          # Создать задачу
-hod list [--json] [--tree] [--status val]   # Список задач
-hod get <id> [options]                      # Получить задачу
-hod update <id> [options]                   # Обновить задачу
-hod move <id> --parent <id>                 # Переместить задачу
-hod delete <id> [--recursive]               # Удалить задачу
+hod init [--dir ./tasks]                               # Инициализация проекта
+hod add --title "Задача" [options]                     # Создать задачу
+hod list [--json] [--tree] [--<field> <val>]           # Список задач
+hod get <id> [--title] [--status] [--dependencies]     # Получить задачу
+         [--json] [--markdown]
+hod update <id> [options]                              # Обновить поля задачи
+hod append <id> [options]                              # Добавить к полям задачи (разделитель \n)
+hod done <id>                                          # Отметить задачу выполненной
+hod dependency <id> [--add <ids...>] [--delete <ids...>] # Управлять зависимостями
+hod move <id> --parent <id>                            # Переместить задачу
+hod delete <id> [--recursive]                          # Удалить задачу
+hod next [--all] [--json]                              # Показать задачи готовые к выполнению
+hod migrate <id> [-o <path>] [-s] [-f]                 # Конвертировать задачу .md → .json
+hod md <id> [-o <path>] [-s]                           # Конвертировать задачу .json → .md
 ```
 
 **Динамические опции полей:**
 - Опции для кастомных полей генерируются из `hod.config.yml`
 - Формат: `--field-name` (kebab-case) → markdown ключ `FieldName`
 - Пример: конфиг `Title: {name: title}` → CLI `--title "Value"`
+- `hod list` поддерживает фильтрацию по любому полю: `hod list --status pending`
 
 ## Общие паттерны
 
@@ -246,7 +254,7 @@ await fs.rename(tempPath, targetPath);  // atomic on POSIX
 - **Parser** — markdown → ParsedTask, поддержка кастомных полей
 - **Index** — зависимости в JSON, цикловая детекция, getNextTasks()
 - **Formatters** — TaskData → markdown генератор
-- **CLI** — add, list, get, update, delete, move, init с динамическими опциями
+- **CLI** — add, list, get, update, append, done, dependency, delete, move, init, next, migrate, md с динамическими опциями
 
 ## Тестирование
 

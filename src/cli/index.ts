@@ -12,6 +12,7 @@ import { mdCommand, type MdCommandOptions } from './commands/md.js';
 import { nextCommand, type NextCommandOptions } from './commands/next.js';
 import { appendCommand, type AppendCommandOptions } from './commands/append.js';
 import { doneCommand } from './commands/done.js';
+import { dependencyCommand, type DependencyCommandOptions } from './commands/dependency.js';
 import { createServices } from './services.js';
 import type { Config } from '../config/types.js';
 import { ConfigNotFoundError } from '../config/errors.js';
@@ -548,6 +549,58 @@ async function registerAppendCommand(): Promise<void> {
 }
 
 /**
+ * Registers the 'dependency' command.
+ */
+async function registerDependencyCommand(): Promise<void> {
+  let services: Awaited<ReturnType<typeof createServices>>;
+
+  try {
+    services = await createServices();
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      program
+        .command('dependency')
+        .description('Управление зависимостями задачи')
+        .action(() => {
+          console.error(error.message);
+          process.exit(1);
+        });
+      return;
+    }
+    throw error;
+  }
+
+  program
+    .command('dependency <id>')
+    .description('Добавить или удалить зависимости задачи')
+    .option('--add <ids...>', 'ID задач для добавления в зависимости')
+    .option('--delete <ids...>', 'ID задач для удаления из зависимостей')
+    .action(async (id: string, options: Omit<DependencyCommandOptions, 'id'>) => {
+      try {
+        const result = await dependencyCommand({ ...options, id }, services);
+
+        const parts: string[] = [];
+        if (result.added.length > 0) {
+          parts.push(`добавлены: ${result.added.join(', ')}`);
+        }
+        if (result.removed.length > 0) {
+          parts.push(`удалены: ${result.removed.join(', ')}`);
+        }
+
+        const detail = parts.length > 0 ? ` (${parts.join('; ')})` : '';
+        console.log(`✓ Зависимости задачи ${result.id} обновлены${detail}`);
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error.message);
+          process.exit(1);
+        }
+        console.error('Неизвестная ошибка');
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Main CLI entry point.
  */
 export async function main(): Promise<void> {
@@ -588,6 +641,9 @@ export async function main(): Promise<void> {
 
   // Register append command
   await registerAppendCommand();
+
+  // Register dependency command
+  await registerDependencyCommand();
 
   await program.parseAsync(process.argv);
 }
