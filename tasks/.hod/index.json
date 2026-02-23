@@ -14,11 +14,11 @@
     "dependencies": []
   },
   "4": {
-    "dependencies": [],
-    "status": "pending"
+    "status": "completed",
+    "dependencies": []
   },
   "5": {
-    "status": "pending",
+    "status": "completed",
     "dependencies": []
   },
   "6": {
@@ -26,7 +26,7 @@
     "dependencies": []
   },
   "7": {
-    "status": "pending",
+    "status": "completed",
     "dependencies": []
   },
   "8": {
@@ -34,7 +34,7 @@
     "dependencies": []
   },
   "9": {
-    "status": "pending",
+    "status": "completed",
     "dependencies": []
   },
   "10": {
@@ -46,7 +46,11 @@
     "dependencies": []
   },
   "12": {
-    "status": "pending",
+    "status": "completed",
+    "dependencies": []
+  },
+  "13": {
+    "status": "completed",
     "dependencies": []
   },
   "4.1": {
@@ -54,16 +58,16 @@
     "status": "done"
   },
   "4.2": {
+    "status": "completed",
     "dependencies": [
       "4.1"
-    ],
-    "status": "pending"
+    ]
   },
   "4.3": {
+    "status": "completed",
     "dependencies": [
       "4.2"
-    ],
-    "status": "pending"
+    ]
   },
   "4.4": {
     "dependencies": [
@@ -72,21 +76,21 @@
     "status": "done"
   },
   "4.5": {
+    "status": "completed",
     "dependencies": [
       "4.2"
-    ],
-    "status": "pending"
+    ]
   },
   "4.6": {
+    "status": "completed",
     "dependencies": [
       "4.2"
-    ],
-    "status": "pending"
+    ]
   },
   "4.7": {
+    "status": "completed",
     "dependencies": [
       "4.2"
-    ],
-    "status": "pending"
+    ]
   }
 }

@@ -1,6 +1,7 @@
 import type { TaskData } from '../types.js';
 import type { IndexData } from '../index/types.js';
 import { GenerationError } from './errors.js';
+import { sortIds } from '../utils/sort.js';
 
 // Re-export for convenience
 export { GenerationError };
@@ -59,7 +60,7 @@ export function generate(id: string, data: TaskData, indexData?: IndexData): str
     }
     if (indexEntry.dependencies.length > 0) {
       sections.push('# Dependencies');
-      sections.push(indexEntry.dependencies.join(', '));
+      sections.push(sortIds(indexEntry.dependencies).join(', '));
       sections.push('');
     }
   }

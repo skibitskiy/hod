@@ -1,11 +1,12 @@
 import type { ParsedTask } from '../../parser/types.js';
 import type { Services } from '../services.js';
-import type { Config } from '../../config/types.js';
 import type { TaskData } from '../../types.js';
 import type { IndexData } from '../../index/types.js';
 import { validateCliId } from '../../utils/validation.js';
 import { generate } from '../../formatters/generator.js';
 import { ParseError } from '../../parser/types.js';
+import { sortIds } from '../../utils/sort.js';
+import { outputTaskFull } from '../utils/output.js';
 
 export interface GetCommandOptions {
   title?: boolean;
@@ -97,7 +98,7 @@ export async function getCommand(
   } else if (options.dependencies) {
     outputDependencies(id, indexEntry);
   } else {
-    outputFull(id, parsed, indexEntry, config);
+    outputTaskFull(id, parsed, indexEntry, config);
   }
 }
 
@@ -140,45 +141,7 @@ function outputDependencies(
     console.log('Нет зависимостей');
     return;
   }
-  console.log(indexEntry.dependencies.join(', '));
-}
-
-/**
- * Output full task in readable format
- */
-function outputFull(
-  id: string,
-  parsed: ParsedTask,
-  indexEntry: { status: string; dependencies: string[] } | undefined,
-  config: Config,
-): void {
-  console.log(`ID: ${id}`);
-
-  // Output title
-  if (parsed.title) {
-    console.log(`Title: ${parsed.title}`);
-  }
-
-  // Output status from index
-  if (indexEntry) {
-    console.log(`Status: ${indexEntry.status}`);
-  }
-
-  // Output dependencies from index
-  if (indexEntry && indexEntry.dependencies.length > 0) {
-    console.log(`Dependencies: ${indexEntry.dependencies.join(', ')}`);
-  }
-
-  // Output custom fields from config
-  for (const [markdownKey, fieldConfig] of Object.entries(config.fields)) {
-    if (markdownKey === 'Title' || markdownKey === 'Status') continue; // Already handled
-
-    const fieldName = fieldConfig.name;
-    const value = parsed[fieldName];
-    if (value !== undefined && value !== '') {
-      console.log(`${markdownKey}: ${value}`);
-    }
-  }
+  console.log(sortIds(indexEntry.dependencies).join(', '));
 }
 
 /**
@@ -201,7 +164,7 @@ function outputJson(
   // Add status and dependencies from index (override if present)
   if (indexEntry) {
     result.status = indexEntry.status;
-    result.dependencies = indexEntry.dependencies;
+    result.dependencies = sortIds(indexEntry.dependencies);
   }
 
   console.log(JSON.stringify(result, null, 2));

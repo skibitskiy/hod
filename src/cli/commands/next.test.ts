@@ -229,8 +229,8 @@ describe('next command', () => {
     });
   });
 
-  describe('форматирование таблицы', () => {
-    it('должен выводить таблицу с заголовком', async () => {
+  describe('форматирование вывода', () => {
+    it('должен выводить задачу с полями ID, Title, Status', async () => {
       const tasks = [{ id: '1', content: '# Title\nTest Task' }];
       const indexData = { '1': { status: 'pending', dependencies: [] } };
       const services = createMockServices(tasks, indexData);
@@ -257,7 +257,7 @@ describe('next command', () => {
       expect(logs.join('\n')).toContain('in_progress');
     });
 
-    it('должен заменять пустые значения на "-"', async () => {
+    it('должен не выводить пустые поля', async () => {
       const tasks = [{ id: '1', content: '# Title\nTest Task' }];
       const indexData = { '1': { status: 'pending', dependencies: [] } };
       const services = createMockServices(tasks, indexData);
@@ -266,7 +266,8 @@ describe('next command', () => {
       const options: NextCommandOptions = {};
       await nextCommand(options, services);
 
-      expect(logs.join('\n')).toContain('-'); // Для пустого description
+      // Пустой description не должен выводиться
+      expect(logs.join('\n')).not.toContain('Description:');
     });
   });
 

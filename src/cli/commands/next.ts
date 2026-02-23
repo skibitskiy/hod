@@ -4,6 +4,7 @@ import type { Config } from '../../config/types.js';
 import { StorageAccessError } from '../../storage/errors.js';
 import { sortIds } from '../../utils/sort.js';
 import { DEFAULT_DONE_STATUS } from '../../config/types.js';
+import { outputTasksFull } from '../utils/output.js';
 
 export interface NextCommandOptions {
   [key: string]: string | boolean | undefined;
@@ -83,7 +84,7 @@ export async function nextCommand(options: NextCommandOptions, services: Service
   if (options.json) {
     outputJson(parsed, indexData, config.fields);
   } else {
-    outputTable(parsed, indexData, config.fields);
+    outputTasksFull(parsed, indexData, config);
   }
 }
 
@@ -119,64 +120,4 @@ function outputJson(
   });
 
   console.log(JSON.stringify(result, null, 2));
-}
-
-/**
- * Outputs tasks as a table.
- */
-function outputTable(
-  filtered: Array<{ id: string; task: ParsedTask }>,
-  indexData: Record<string, { status: string; dependencies: string[] }>,
-  fields: Config['fields'],
-): void {
-  if (filtered.length === 0) {
-    console.log('Нет задач');
-    return;
-  }
-
-  // 1. Get field keys sorted alphabetically by Markdown key
-  const fieldKeys = Object.keys(fields).sort();
-
-  // 2. Calculate column widths
-  const colWidths: Record<string, number> = { id: 4 };
-  for (const key of fieldKeys) {
-    const cliName = fields[key].name;
-    const header = key;
-    const maxVal = Math.max(
-      header.length,
-      ...filtered.map((f) => {
-        if (cliName === 'status') {
-          return (indexData[f.id]?.status ?? '-').length;
-        }
-        return (f.task[cliName] ?? '-').toString().length;
-      }),
-    );
-    colWidths[cliName] = maxVal;
-  }
-
-  // 3. Print header
-  const headerParts = fieldKeys.map((k) => {
-    const cliName = fields[k].name;
-    return k.padEnd(colWidths[cliName]);
-  });
-  console.log(`ID  ${headerParts.join('  ')}`);
-
-  // 4. Print data rows
-  for (const { id, task } of filtered) {
-    const values = fieldKeys.map((k) => {
-      const cliName = fields[k].name;
-      let val: string | undefined;
-
-      if (cliName === 'status') {
-        val = indexData[id]?.status;
-      } else {
-        val = task[cliName];
-      }
-
-      const isEmpty = val === undefined || val === '';
-      const clean = isEmpty ? '-' : (val as string).replace(/[\n\r\t]+/g, ' ');
-      return clean.padEnd(colWidths[cliName]);
-    });
-    console.log(`${id.padEnd(4)}${values.join('  ')}`);
-  }
 }
