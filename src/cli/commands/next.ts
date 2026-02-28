@@ -7,9 +7,10 @@ import { DEFAULT_DONE_STATUS } from '../../config/types.js';
 import { outputTasksFull } from '../utils/output.js';
 
 export interface NextCommandOptions {
-  [key: string]: string | boolean | undefined;
+  [key: string]: string | boolean | number | undefined;
   all?: boolean;
   json?: boolean;
+  limit?: number;
 }
 
 /**
@@ -30,10 +31,21 @@ export async function nextCommand(options: NextCommandOptions, services: Service
     return;
   }
 
-  // 3. If --all flag is not set, show only the first task
-  const idsToShow = options.all ? nextIds : [nextIds[0]];
+  // 3. Determine which field names are selected via flags
+  const allFieldNames = new Set([
+    ...Object.values(config.fields).map((f) => f.name),
+    'dependencies',
+  ]);
+  const selectedFieldNames = [...allFieldNames].filter((name) => options[name] === true);
+  const selectedFields = selectedFieldNames.length > 0 ? new Set(selectedFieldNames) : undefined;
 
-  // 4. Load tasks from storage
+  // 4. If --all flag is not set, show only the first task; apply --limit if set
+  let idsToShow = options.all ? nextIds : [nextIds[0]];
+  if (options.all && options.limit !== undefined && options.limit > 0) {
+    idsToShow = idsToShow.slice(0, options.limit);
+  }
+
+  // 5. Load tasks from storage
   let tasks: Array<{ id: string; content: string }>;
   try {
     tasks = await services.storage.list();
@@ -45,7 +57,7 @@ export async function nextCommand(options: NextCommandOptions, services: Service
     throw error;
   }
 
-  // 5. Filter and parse tasks to show
+  // 6. Filter and parse tasks to show
   const taskMap = new Map(tasks.map((t) => [t.id, t.content]));
   const parsed: Array<{ id: string; task: ParsedTask }> = [];
 
@@ -77,14 +89,14 @@ export async function nextCommand(options: NextCommandOptions, services: Service
     return;
   }
 
-  // 6. Load index data for status display
+  // 7. Load index data for status display
   const indexData = await services.index.load();
 
-  // 7. Output
+  // 8. Output
   if (options.json) {
-    outputJson(parsed, indexData, config.fields);
+    outputJson(parsed, indexData, config.fields, selectedFields);
   } else {
-    outputTasksFull(parsed, indexData, config);
+    outputTasksFull(parsed, indexData, config, selectedFields);
   }
 }
 
@@ -95,6 +107,7 @@ function outputJson(
   filtered: Array<{ id: string; task: ParsedTask }>,
   indexData: Record<string, { status: string; dependencies: string[] }>,
   fields: Config['fields'],
+  selectedFields?: Set<string>,
 ): void {
   if (filtered.length === 0) {
     console.log('[]');
@@ -105,6 +118,7 @@ function outputJson(
     const obj: Record<string, string | string[]> = { id };
 
     for (const field of Object.values(fields)) {
+      if (selectedFields && !selectedFields.has(field.name)) continue;
       const val = task[field.name];
       if (val !== undefined) {
         obj[field.name] = val;
@@ -113,8 +127,12 @@ function outputJson(
 
     const indexEntry = indexData[id];
     if (indexEntry) {
-      obj.status = indexEntry.status;
-      obj.dependencies = sortIds(indexEntry.dependencies);
+      if (!selectedFields || selectedFields.has('status')) {
+        obj.status = indexEntry.status;
+      }
+      if (!selectedFields || selectedFields.has('dependencies')) {
+        obj.dependencies = sortIds(indexEntry.dependencies);
+      }
     }
     return obj;
   });

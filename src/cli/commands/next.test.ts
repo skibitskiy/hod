@@ -388,4 +388,159 @@ describe('next command', () => {
       expect(parsed[0]).toHaveProperty('title', 'Child');
     });
   });
+
+  describe('флаги полей', () => {
+    it('--title: выводит ID и только Title', async () => {
+      const tasks = [{ id: '1', content: '# Title\nTest Task\n# Description\nSome Description' }];
+      const indexData = { '1': { status: 'pending', dependencies: [] } };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      await nextCommand({ title: true }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('ID: 1');
+      expect(output).toContain('Title: Test Task');
+      expect(output).not.toContain('Status:');
+      expect(output).not.toContain('Description:');
+    });
+
+    it('--status: выводит ID и только Status', async () => {
+      const tasks = [{ id: '1', content: '# Title\nTest Task' }];
+      const indexData = { '1': { status: 'in_progress', dependencies: [] } };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      await nextCommand({ status: true }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('ID: 1');
+      expect(output).toContain('Status: in_progress');
+      expect(output).not.toContain('Title:');
+    });
+
+    it('--dependencies: выводит ID и только Dependencies', async () => {
+      const tasks = [{ id: '1', content: '# Title\nTest Task' }];
+      const indexData = { '1': { status: 'pending', dependencies: ['2', '3'] } };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      await nextCommand({ dependencies: true }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('ID: 1');
+      expect(output).toContain('Dependencies: 2, 3');
+      expect(output).not.toContain('Title:');
+      expect(output).not.toContain('Status:');
+    });
+
+    it('--title --status: выводит оба поля', async () => {
+      const tasks = [{ id: '1', content: '# Title\nTest Task' }];
+      const indexData = { '1': { status: 'pending', dependencies: [] } };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      await nextCommand({ title: true, status: true }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('Title: Test Task');
+      expect(output).toContain('Status: pending');
+      expect(output).not.toContain('Description:');
+    });
+
+    it('без флагов: выводит все поля', async () => {
+      const tasks = [{ id: '1', content: '# Title\nTest Task\n# Description\nSome Description' }];
+      const indexData = { '1': { status: 'pending', dependencies: ['2'] } };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      await nextCommand({}, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('Title: Test Task');
+      expect(output).toContain('Status: pending');
+      expect(output).toContain('Dependencies: 2');
+      expect(output).toContain('Description: Some Description');
+    });
+
+    it('--title с --json: JSON содержит только id и title', async () => {
+      const tasks = [{ id: '1', content: '# Title\nTest Task\n# Description\nSome Description' }];
+      const indexData = { '1': { status: 'pending', dependencies: [] } };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1']);
+
+      await nextCommand({ title: true, json: true }, services);
+
+      const parsed = JSON.parse(logs.join('\n'));
+      expect(parsed[0]).toHaveProperty('id', '1');
+      expect(parsed[0]).toHaveProperty('title', 'Test Task');
+      expect(parsed[0]).not.toHaveProperty('status');
+      expect(parsed[0]).not.toHaveProperty('description');
+    });
+  });
+
+  describe('опция --limit', () => {
+    it('--all --limit 1: показывает максимум 1 задачу', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nFirst Task' },
+        { id: '2', content: '# Title\nSecond Task' },
+        { id: '3', content: '# Title\nThird Task' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+        '3': { status: 'pending', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+
+      await nextCommand({ all: true, limit: 1 }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('First Task');
+      expect(output).not.toContain('Second Task');
+      expect(output).not.toContain('Third Task');
+    });
+
+    it('--all --limit 2: показывает максимум 2 задачи', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nFirst Task' },
+        { id: '2', content: '# Title\nSecond Task' },
+        { id: '3', content: '# Title\nThird Task' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+        '3': { status: 'pending', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+
+      await nextCommand({ all: true, limit: 2 }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('First Task');
+      expect(output).toContain('Second Task');
+      expect(output).not.toContain('Third Task');
+    });
+
+    it('без --all: --limit игнорируется, показывает 1 задачу', async () => {
+      const tasks = [
+        { id: '1', content: '# Title\nFirst Task' },
+        { id: '2', content: '# Title\nSecond Task' },
+      ];
+      const indexData = {
+        '1': { status: 'pending', dependencies: [] },
+        '2': { status: 'pending', dependencies: [] },
+      };
+      const services = createMockServices(tasks, indexData);
+      (services.index.getNextTasks as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2']);
+
+      await nextCommand({ limit: 1 }, services);
+
+      const output = logs.join('\n');
+      expect(output).toContain('First Task');
+      expect(output).not.toContain('Second Task');
+    });
+  });
 });

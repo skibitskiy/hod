@@ -117,15 +117,26 @@ hod move 2.1 --parent 3
 ```
 
 ### `hod next`
-Show next available tasks (all dependencies completed).
+Show next available tasks (all dependencies completed). Output format matches `hod get`.
 
 **Options:**
 - `--all`: Show all ready tasks (not just first)
+- `--limit <n>`: Maximum number of tasks to show (only with `--all`)
+- `--title`: Show only title field
+- `--status`: Show only status field
+- `--dependencies`: Show only dependencies field
+- Any custom field flag from config (e.g., `--priority`)
+- `--json`: Output in JSON format
+
+Field flags can be combined. Without any field flags, all fields are shown.
 
 **Example:**
 ```bash
 hod next
 hod next --all
+hod next --all --limit 3
+hod next --title --status
+hod next --all --json
 ```
 
 ### `hod sync`

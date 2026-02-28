@@ -190,9 +190,15 @@ hod done 1.2     # works with subtasks
 ### `hod next` — Show tasks ready to work on
 
 ```bash
-hod next           # show the single highest-priority ready task
-hod next --all     # show all tasks with all dependencies completed
-hod next --json    # JSON array output
+hod next                        # show the single highest-priority ready task
+hod next --all                  # show all tasks with all dependencies completed
+hod next --all --limit 3        # show at most 3 ready tasks
+hod next --json                 # JSON array output
+hod next --title                # show only title for each ready task
+hod next --status               # show only status for each ready task
+hod next --dependencies         # show only dependencies for each ready task
+hod next --title --status       # combine field flags (shows both fields)
+hod next --all --title --json   # combine with --all and --json
 ```
 
 A task is "ready" when:
@@ -200,9 +206,26 @@ A task is "ready" when:
 2. All of its dependencies have a "done" status
 3. It has no pending subtasks
 
-**Output (default):**
+**Field flags:** Pass any combination of `--title`, `--status`, `--dependencies`, or any custom field from config to show only those fields. Without field flags, all fields are shown.
+
+**`--limit <n>`** limits the number of tasks returned by `--all`. Without `--all`, it has no effect.
+
+**Output (default, same format as `hod get`):**
 ```
-1.2  Task title  pending
+ID: 1.2
+Title: Task title
+Status: pending
+```
+
+**Output with `--title --status`:**
+```
+ID: 1.2
+Title: Task title
+Status: pending
+---
+ID: 2
+Title: Another task
+Status: pending
 ```
 
 ---

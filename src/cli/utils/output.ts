@@ -15,28 +15,36 @@ export function outputTaskFull(
   parsed: ParsedTask,
   indexEntry: { status: string; dependencies: string[] } | undefined,
   config: Config,
+  selectedFields?: Set<string>,
 ): void {
   console.log(`ID: ${id}`);
 
   // Output title
-  if (parsed.title) {
-    console.log(`Title: ${parsed.title}`);
+  if (!selectedFields || selectedFields.has('title')) {
+    if (parsed.title) {
+      console.log(`Title: ${parsed.title}`);
+    }
   }
 
   // Output status from index
-  if (indexEntry) {
-    console.log(`Status: ${indexEntry.status}`);
+  if (!selectedFields || selectedFields.has('status')) {
+    if (indexEntry) {
+      console.log(`Status: ${indexEntry.status}`);
+    }
   }
 
   // Output dependencies from index (sorted)
-  if (indexEntry && indexEntry.dependencies.length > 0) {
-    const sortedDeps = sortIds(indexEntry.dependencies);
-    console.log(`Dependencies: ${sortedDeps.join(', ')}`);
+  if (!selectedFields || selectedFields.has('dependencies')) {
+    if (indexEntry && indexEntry.dependencies.length > 0) {
+      const sortedDeps = sortIds(indexEntry.dependencies);
+      console.log(`Dependencies: ${sortedDeps.join(', ')}`);
+    }
   }
 
   // Output custom fields from config
   for (const [markdownKey, fieldConfig] of Object.entries(config.fields)) {
     if (markdownKey === 'Title' || markdownKey === 'Status') continue; // Already handled
+    if (selectedFields && !selectedFields.has(fieldConfig.name)) continue;
 
     const fieldName = fieldConfig.name;
     const value = parsed[fieldName];
@@ -53,12 +61,13 @@ export function outputTasksFull(
   tasks: Array<{ id: string; task: ParsedTask }>,
   indexData: Record<string, { status: string; dependencies: string[] }>,
   config: Config,
+  selectedFields?: Set<string>,
 ): void {
   for (let i = 0; i < tasks.length; i++) {
     if (i > 0) {
       console.log('---');
     }
     const { id, task } = tasks[i];
-    outputTaskFull(id, task, indexData[id], config);
+    outputTaskFull(id, task, indexData[id], config, selectedFields);
   }
 }

@@ -466,9 +466,11 @@ async function registerMigrateCommand(): Promise<void> {
  */
 async function registerNextCommand(): Promise<void> {
   let services: Awaited<ReturnType<typeof createServices>>;
+  let config: Config;
 
   try {
     services = await createServices();
+    config = await services.config.load();
   } catch (error) {
     if (error instanceof ConfigNotFoundError) {
       program
@@ -483,10 +485,11 @@ async function registerNextCommand(): Promise<void> {
     throw error;
   }
 
-  program
+  const nextCmd = program
     .command('next')
     .description('Показать задачи готовые к выполнению')
     .option('--all', 'Показать все готовые задачи')
+    .option('--limit <n>', 'Максимальное количество задач (только с --all)', parseInt)
     .option('--json', 'Вывод в формате JSON')
     .action(async (options: NextCommandOptions) => {
       try {
@@ -500,6 +503,15 @@ async function registerNextCommand(): Promise<void> {
         process.exit(1);
       }
     });
+
+  // Register boolean field-select flags from config
+  for (const [markdownKey, fieldConfig] of Object.entries(config.fields)) {
+    nextCmd.option(`--${fieldConfig.name}`, `Показать только поле "${markdownKey}"`);
+  }
+  // Always register --dependencies (system field not in config)
+  if (!Object.values(config.fields).some((f) => f.name === 'dependencies')) {
+    nextCmd.option('--dependencies', 'Показать зависимости');
+  }
 }
 
 /**
